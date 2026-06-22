@@ -1,318 +1,556 @@
 "use client";
 
-import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState, useEffect } from "react";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Textarea } from "@/components/ui/textarea";
-import { Search, Phone, Mail, MapPin, ShoppingCart, Clock, CheckCircle2, User, PhoneCall, AlertCircle, Save, ExternalLink, Calendar, CalendarCheck, FileText, CheckCircle } from "lucide-react";
+import { 
+  Search, Bell, History, Mail, MessageSquare, PhoneOff, User, 
+  ShoppingBag, Mic, MicOff, Send, CalendarPlus, CheckCircle2, Clock, AlertTriangle, PlayCircle, Sparkles, ChevronDown, PhoneCall, Loader2
+} from "lucide-react";
+import { getCustomers } from "@/services/customerService";
+import { CustomerRecovery } from "@/types/database";
+import { supabase } from "@/lib/supabase";
 
-export default function RecoveryWorkspacePage() {
-  const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
+export default function AssignedCartsPage() {
+  const [activeTab, setActiveTab] = useState("high_value");
+  const [isMuted, setIsMuted] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isCalling, setIsCalling] = useState(false);
+  
+  const [customers, setCustomers] = useState<CustomerRecovery[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedCartId, setSelectedCartId] = useState<string | null>(null);
 
-  const queueData = [
-    { name: "Deepika Kedia", val: "₹8,900", priority: "High", pColor: "bg-destructive/10 text-destructive", status: "Follow Up", sColor: "bg-[#E0E7FF] text-[#1e40af]", time: "2 hours ago" },
-    { name: "Michael Torres", val: "₹24,500", priority: "High", pColor: "bg-destructive/10 text-destructive", status: "Pending", sColor: "bg-muted text-muted-foreground", time: "10 mins ago" },
-    { name: "Sarah Jenkins", val: "₹1,200", priority: "Low", pColor: "bg-muted text-muted-foreground", status: "Pending", sColor: "bg-muted text-muted-foreground", time: "1 hour ago" },
-    { name: "Rahul Sharma", val: "₹4,500", priority: "Medium", pColor: "bg-[#FEF3C7] text-[#92400e]", status: "Pending", sColor: "bg-muted text-muted-foreground", time: "3 hours ago" },
-  ];
+  useEffect(() => {
+    async function loadData() {
+      setIsLoading(true);
+      const { data, error: fetchError } = await getCustomers();
+      if (fetchError) {
+        setError(fetchError.message);
+      } else if (data) {
+        setCustomers(data);
+        // Find first high value item to select by default based on initial tab
+        const highValue = data.filter(c => (c.cart_value || 0) >= 5000);
+        if (highValue.length > 0) {
+          setSelectedCartId(highValue[0].cart_id);
+        } else if (data.length > 0) {
+          setSelectedCartId(data[0].cart_id);
+        }
+      }
+      setIsLoading(false);
+    }
+    loadData();
 
-  return (
-    <div className="flex flex-col gap-6 pb-12 h-full w-full mx-auto">
-      {/* Top Bar replacing layout header */}
-      <div className="-mt-4 -mx-4 md:-mt-6 md:-mx-6 mb-2 border-b border-border bg-[#F8FAFC] px-6 py-5 flex flex-col gap-5">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pl-8 md:pl-10">
-          <div>
-            <h1 className="text-[26px] font-extrabold tracking-tight text-foreground">Assigned Queue</h1>
-            <p className="text-[14px] font-medium text-muted-foreground mt-0.5">Select a customer below to open their recovery workspace.</p>
-          </div>
-          <div className="flex items-center">
-            <span className="bg-[#E0E7FF] text-[#3b82f6] font-bold h-8 px-4 rounded-full text-[13px] flex items-center justify-center">87 Customers</span>
-          </div>
-        </div>
+    const channel = supabase
+      .channel('realtime-recoveries')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'customer_recoveries',
+        },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            setCustomers((prev) => [payload.new as CustomerRecovery, ...prev]);
+          } else if (payload.eventType === 'UPDATE') {
+            setCustomers((prev) => 
+              prev.map((c) => c.cart_id === payload.new.cart_id ? payload.new as CustomerRecovery : c)
+            );
+          } else if (payload.eventType === 'DELETE') {
+            setCustomers((prev) => prev.filter((c) => c.cart_id !== payload.old.cart_id));
+          }
+        }
+      )
+      .subscribe();
 
-        <div className="pl-8 md:pl-10 w-full flex flex-col md:flex-row gap-4">
-          <div className="w-full md:w-[350px]">
-            <div className="flex items-center bg-white border border-border focus-within:border-primary transition-all rounded-md px-3 h-10 w-full shadow-sm">
-              <Search className="w-4 h-4 text-muted-foreground mr-2 shrink-0" />
-              <input 
-                className="bg-transparent border-none focus:ring-0 text-[13px] w-full outline-none font-medium placeholder:text-muted-foreground" 
-                placeholder="Search customer, phone, or cart ID..." 
-              />
-            </div>
-          </div>
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
-          <div className="flex flex-wrap items-center gap-2">
-            <Select defaultValue="high_value">
-              <SelectTrigger className="w-[150px] h-10 bg-white rounded-md border-border text-[13px] font-medium shadow-sm focus:ring-0">
-                <SelectValue placeholder="Filter Queue" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all" className="text-[13px] font-medium">All Customers</SelectItem>
-                <SelectItem value="high_value" className="text-[13px] font-medium">High Value</SelectItem>
-                <SelectItem value="pending" className="text-[13px] font-medium">Pending</SelectItem>
-                <SelectItem value="follow_up" className="text-[13px] font-medium">Follow Up</SelectItem>
-                <SelectItem value="recent" className="text-[13px] font-medium">Recent</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+  // Filtering
+  const filteredCustomers = customers.filter(c => {
+    // Search query
+    if (searchQuery) {
+      const sq = searchQuery.toLowerCase();
+      const matchesName = `${c.first_name || ''} ${c.last_name || ''}`.toLowerCase().includes(sq);
+      const matchesPhone = (c.phone || '').includes(sq);
+      const matchesCart = (c.cart_id || '').toLowerCase().includes(sq);
+      if (!matchesName && !matchesPhone && !matchesCart) return false;
+    }
+
+    // Tab filter
+    if (activeTab === 'high_value') {
+      return (c.cart_value || 0) >= 5000;
+    }
+    if (activeTab === 'pending') {
+      return c.follow_up === 'Pending' || c.recovery_status === 'Pending' || c.recovery_status === null;
+    }
+    // recent
+    return true; 
+  });
+
+  const selectedCustomer = filteredCustomers.find(c => c.cart_id === selectedCartId) || filteredCustomers[0];
+
+  const formatTimeAgo = (dateStr: string | null) => {
+    if (!dateStr) return 'Unknown';
+    let ds = dateStr;
+    if (ds.includes(' ') && !ds.includes('T')) ds = ds.replace(' ', 'T');
+    if (!ds.endsWith('Z') && !ds.match(/[+-]\d{2}:?\d{2}$/)) ds += 'Z';
+    const date = new Date(ds);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    if (diffMins < 60) return `${diffMins} mins ago`;
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours} hours ago`;
+    return `${Math.floor(diffHours / 24)} days ago`;
+  };
+
+  const getProductsList = (productsJson: any) => {
+    if (!productsJson) return [];
+    try {
+      if (typeof productsJson === 'string') return JSON.parse(productsJson);
+      if (Array.isArray(productsJson)) return productsJson;
+      return [];
+    } catch (e) {
+      return [];
+    }
+  };
+
+  const formatCurrency = (val: any) => {
+    if (!val) return '₹0';
+    const num = typeof val === 'string' ? parseFloat(val) : val;
+    return `₹${num.toLocaleString()}`;
+  };
+
+  const activeProducts = getProductsList(selectedCustomer?.products);
+
+  if (isLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-[#F8FAFC]">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-700" />
+          <p className="text-sm font-bold text-slate-500">Loading workspace...</p>
         </div>
       </div>
+    );
+  }
 
-      {/* Full Width Table */}
-      <Card className="flex-1 shadow-sm overflow-hidden border-border flex flex-col">
-        <div className="overflow-x-auto flex-1">
-          <Table>
-            <TableHeader className="bg-muted/30">
-              <TableRow>
-                <TableHead className="text-[11px] font-bold tracking-[0.05em] text-muted-foreground uppercase h-10 px-6">Customer</TableHead>
-                <TableHead className="text-[11px] font-bold tracking-[0.05em] text-muted-foreground uppercase h-10 px-6">Cart Value</TableHead>
-                <TableHead className="text-[11px] font-bold tracking-[0.05em] text-muted-foreground uppercase h-10 px-6">Priority</TableHead>
-                <TableHead className="text-[11px] font-bold tracking-[0.05em] text-muted-foreground uppercase h-10 px-6">Status</TableHead>
-                <TableHead className="text-[11px] font-bold tracking-[0.05em] text-muted-foreground uppercase h-10 px-6">Abandoned</TableHead>
-                <TableHead className="text-[11px] font-bold tracking-[0.05em] text-muted-foreground uppercase h-10 px-6 text-right">Action</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {queueData.map((row, i) => (
-                <TableRow 
-                  key={i} 
-                  className="hover:bg-muted/30 border-border h-16 cursor-pointer"
-                  onClick={() => setSelectedCustomer(row)}
-                >
-                  <TableCell className="px-6 font-bold text-[15px] text-foreground">{row.name}</TableCell>
-                  <TableCell className="px-6 font-extrabold text-[15px] text-foreground">{row.val}</TableCell>
-                  <TableCell className="px-6">
-                    <span className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest rounded ${row.pColor}`}>{row.priority}</span>
-                  </TableCell>
-                  <TableCell className="px-6">
-                    <Badge variant="secondary" className={`text-[10px] uppercase tracking-widest ${row.sColor}`}>{row.status}</Badge>
-                  </TableCell>
-                  <TableCell className="px-6 text-[13px] font-medium text-muted-foreground flex items-center gap-1 mt-3">
-                    <Clock className="w-3 h-3" /> {row.time}
-                  </TableCell>
-                  <TableCell className="px-6 text-right">
-                    <Button variant="ghost" size="sm" className="font-bold text-primary hover:text-primary">
-                      Open Workspace <ExternalLink className="w-3 h-3 ml-2" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+  if (error) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-[#F8FAFC]">
+        <div className="text-center max-w-md p-6 bg-white rounded-xl shadow-sm border border-red-100">
+          <AlertTriangle className="w-10 h-10 text-red-500 mx-auto mb-4" />
+          <h2 className="text-lg font-bold text-slate-900 mb-2">Database Error</h2>
+          <p className="text-sm text-slate-600 mb-4">{error}</p>
+          <p className="text-xs text-slate-400">If you just created a new table, make sure Row Level Security (RLS) policies allow read access, or temporarily disable RLS.</p>
         </div>
-      </Card>
+      </div>
+    );
+  }
 
-      {/* Customer Pop-up Workspace */}
-      <Dialog open={!!selectedCustomer} onOpenChange={() => setSelectedCustomer(null)}>
-        <DialogContent className="w-[95vw] sm:max-w-7xl lg:max-w-[1400px] max-h-[90vh] overflow-hidden flex flex-col p-0 border-border bg-background">
-          <DialogHeader className="px-6 py-4 border-b border-border bg-muted/20 shrink-0">
-            <DialogTitle className="text-xl font-extrabold text-foreground flex items-center justify-between">
-              Recovery Workspace: {selectedCustomer?.name}
-            </DialogTitle>
-          </DialogHeader>
+  return (
+    <div className="flex flex-col h-screen overflow-hidden bg-[#F8FAFC] -m-4 md:-m-6">
+      {/* Top Header */}
+      <header className="h-16 shrink-0 bg-white border-b border-border flex items-center justify-between px-6">
+        <div className="flex items-center gap-6 flex-1">
+          <div className="font-bold text-blue-700 text-lg tracking-tight">RecoveryControl</div>
+          <div className="relative w-80">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input 
+              className="pl-9 h-9 bg-muted/50 border-none text-[13px] shadow-none focus-visible:ring-1 focus-visible:ring-blue-500" 
+              placeholder="Search cart ID, name, phone..." 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+        </div>
+        <div className="flex items-center gap-8">
+          <div className="flex items-center gap-6 text-[12px] font-bold">
+            <div className="flex flex-col">
+              <span className="text-muted-foreground tracking-wider uppercase text-[10px]">KPI:</span>
+              <span className="text-green-600 text-[14px]">84% Recovered</span>
+            </div>
+            <div className="w-[1px] h-8 bg-border"></div>
+            <div className="flex flex-col">
+              <span className="text-muted-foreground tracking-wider uppercase text-[10px]">Avg Call:</span>
+              <span className="text-orange-500 text-[14px]">4:12</span>
+            </div>
+            <div className="w-[1px] h-8 bg-border"></div>
+            <div className="flex flex-col">
+              <span className="text-muted-foreground tracking-wider uppercase text-[10px]">Daily Goal:</span>
+              <span className="text-slate-900 text-[14px]">12/20</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="icon" className="relative text-slate-500 hover:text-slate-900">
+              <Bell className="w-4 h-4" />
+              <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
+            </Button>
+            <Button variant="ghost" size="icon" className="text-slate-500 hover:text-slate-900">
+              <History className="w-4 h-4" />
+            </Button>
+            <Button variant="outline" className="h-9 font-bold text-[13px] shadow-sm bg-white hover:bg-slate-50 text-slate-700 border-slate-200">Take Break</Button>
+            <Button className="h-9 font-bold text-[13px] bg-blue-700 hover:bg-blue-800 text-white shadow-sm border-none">Go Ready</Button>
+            <div className="w-8 h-8 rounded-full bg-slate-800 ml-2 overflow-hidden border-2 border-white shadow-sm flex items-center justify-center shrink-0">
+              <User className="w-4 h-4 text-white" />
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content Area */}
+      <div className="flex flex-1 overflow-hidden">
+        
+        {/* Left Column: Assigned Queue */}
+        <div className="w-[320px] shrink-0 bg-white border-r border-border flex flex-col z-10">
+          <div className="p-4 border-b border-border shrink-0">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-extrabold text-[16px] text-slate-900 tracking-tight">Assigned Queue</h2>
+              <Badge variant="secondary" className="bg-slate-100 text-slate-600 text-[11px] font-bold hover:bg-slate-100">{filteredCustomers.length} Carts</Badge>
+            </div>
+            <div className="flex p-1 bg-slate-100/80 rounded-lg border border-slate-200/60">
+              <button className={`flex-1 py-1.5 text-[12px] font-bold rounded-md transition-all ${activeTab === 'high_value' ? 'bg-white shadow-sm text-blue-700 ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-700'}`} onClick={() => setActiveTab('high_value')}>High Value</button>
+              <button className={`flex-1 py-1.5 text-[12px] font-bold rounded-md transition-all ${activeTab === 'pending' ? 'bg-white shadow-sm text-blue-700 ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-700'}`} onClick={() => setActiveTab('pending')}>Pending</button>
+              <button className={`flex-1 py-1.5 text-[12px] font-bold rounded-md transition-all ${activeTab === 'recent' ? 'bg-white shadow-sm text-blue-700 ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-700'}`} onClick={() => setActiveTab('recent')}>Recent</button>
+            </div>
+          </div>
           
-          {/* Inner 2-column layout inside the popup */}
-          <div className="flex flex-col lg:flex-row h-full overflow-hidden">
-            
-            {/* Left: Customer Data & Timeline */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar bg-card">
-              <Card className="shadow-sm border-border bg-card">
-                <CardContent className="p-6">
-                  <div className="flex items-start gap-4">
-                    <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center border-2 border-primary/20 shrink-0">
-                      <User className="w-8 h-8 text-primary" />
+          <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+            {filteredCustomers.length === 0 ? (
+              <div className="text-center p-6 text-sm text-slate-500 font-medium">No carts found for this filter.</div>
+            ) : (
+              filteredCustomers.map((item, i) => {
+                const isActive = item.cart_id === selectedCustomer?.cart_id;
+                const status = item.follow_up || item.recovery_status || 'Pending';
+                const sColor = status === 'Recovered' ? 'bg-green-100 text-green-700 border-green-200' : 'bg-orange-100 text-orange-700 border-orange-200';
+                
+                return (
+                  <div 
+                    key={i} 
+                    onClick={() => setSelectedCartId(item.cart_id)}
+                    className={`p-4 rounded-xl border transition-all cursor-pointer ${isActive ? 'border-blue-600 shadow-sm bg-[#F8FAFC]' : 'border-border bg-white hover:border-blue-300'}`}
+                  >
+                    <div className="flex justify-between items-start mb-2">
+                      <span className="font-bold text-[14px] text-slate-900">{`${item.first_name || ''} ${item.last_name || ''}`.trim() || 'Unknown'}</span>
+                      <Badge variant="outline" className={`text-[10px] font-bold px-2 py-0 border ${sColor}`}>{status}</Badge>
                     </div>
-                    <div className="flex-1">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <h2 className="text-2xl font-extrabold text-foreground">{selectedCustomer?.name}</h2>
-                          <p className="text-[13px] text-muted-foreground font-medium flex items-center gap-1 mt-1">
-                            <MapPin className="w-3.5 h-3.5" /> Mumbai, India
-                          </p>
-                        </div>
-                        <Badge variant="outline" className="border-primary/20 bg-primary/5 text-primary gap-1">
-                          <AlertCircle className="w-3.5 h-3.5" /> 2nd Abandonment
-                        </Badge>
+                    <div className="flex justify-between items-end">
+                      <div className="flex flex-col gap-1.5">
+                        <span className="text-[12px] text-slate-500 font-mono">Cart: {item.cart_id?.substring(0, 8)}</span>
+                        {isActive && (
+                          <span className="text-[12px] font-bold text-blue-700 flex items-center gap-1.5">
+                            <Clock className="w-3.5 h-3.5" /> 00:00 in call
+                          </span>
+                        )}
+                        {(item.cart_value || 0) >= 5000 && !isActive && (
+                          <span className="text-[11px] font-bold text-red-600 flex items-center gap-1.5 mt-0.5">
+                            <AlertTriangle className="w-3.5 h-3.5" /> High Value Risk
+                          </span>
+                        )}
                       </div>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
-                        <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg border border-border">
-                          <Phone className="w-4 h-4 text-muted-foreground" />
-                          <div>
-                            <p className="text-[10px] font-bold tracking-widest uppercase text-muted-foreground">Phone Number</p>
-                            <p className="text-[14px] font-bold text-foreground">+91 98765 43210</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg border border-border">
-                          <Mail className="w-4 h-4 text-muted-foreground" />
-                          <div>
-                            <p className="text-[10px] font-bold tracking-widest uppercase text-muted-foreground">Email Address</p>
-                            <p className="text-[14px] font-bold text-foreground">customer@example.com</p>
-                          </div>
-                        </div>
-                      </div>
+                      <span className="font-extrabold text-[15px] text-slate-900">{formatCurrency(item.cart_value)}</span>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
+                );
+              })
+            )}
+          </div>
+        </div>
 
-              <Card className="shadow-sm border-border bg-card">
-                <CardHeader className="px-6 py-4 border-b border-border bg-muted/20 flex flex-row items-center justify-between">
-                  <CardTitle className="text-[15px] font-bold text-foreground flex items-center gap-2">
-                    <ShoppingCart className="w-4 h-4" /> Abandoned Cart
-                  </CardTitle>
-                  <span className="text-[12px] font-mono text-muted-foreground">ID: CRT-88912A</span>
-                </CardHeader>
-                <CardContent className="p-0">
-                  <div className="divide-y divide-border">
-                    <div className="p-4 px-6 flex justify-between items-center hover:bg-muted/10 transition-colors">
-                      <div>
-                        <p className="text-[14px] font-bold text-foreground">iPhone 15 Pro Leather Cover</p>
-                        <p className="text-[12px] text-muted-foreground mt-0.5">Quantity: 2</p>
-                      </div>
-                      <p className="text-[14px] font-bold text-foreground">₹7,000</p>
-                    </div>
-                  </div>
-                  <div className="p-4 px-6 bg-muted/30 border-t border-border flex justify-between items-center">
-                    <p className="text-[13px] font-bold uppercase tracking-widest text-muted-foreground">Total Cart Value</p>
-                    <p className="text-[20px] font-extrabold text-[#166534]">{selectedCustomer?.val}</p>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Accordion type="multiple" className="w-full space-y-4">
-                <AccordionItem value="timeline" className="border border-border bg-card shadow-sm rounded-xl overflow-hidden data-[state=closed]:border-border">
-                  <AccordionTrigger className="px-6 py-4 hover:no-underline hover:bg-muted/10 transition-colors [&[data-state=open]]:border-b border-border">
-                    <div className="flex items-center gap-2 text-[15px] font-bold text-foreground">
-                      <Clock className="w-4 h-4" /> Activity Timeline
-                    </div>
-                  </AccordionTrigger>
-                  <AccordionContent className="p-6 bg-card">
-                    <div className="relative border-l-2 border-border ml-3 space-y-8 py-2">
-                      <div className="relative pl-6">
-                        <div className="absolute w-4 h-4 bg-background border-2 border-destructive rounded-full -left-[9px] top-1" />
-                        <div className="flex flex-col gap-1">
-                          <p className="text-[13px] font-bold text-foreground">Cart abandoned</p>
-                          <p className="text-[11px] font-medium text-muted-foreground">Today, 10:30 AM</p>
-                        </div>
-                      </div>
-                      <div className="relative pl-6">
-                        <div className="absolute w-4 h-4 bg-background border-2 border-primary rounded-full -left-[9px] top-1" />
-                        <div className="flex flex-col gap-1">
-                          <p className="text-[13px] font-bold text-foreground">Outbound Call (Michael)</p>
-                          <p className="text-[11px] font-medium text-muted-foreground">Today, 11:15 AM</p>
-                          <p className="text-[12px] text-muted-foreground mt-2 italic bg-muted/30 p-2 rounded">"Customer asked for more details on shipping times. Follow up requested."</p>
-                          <Badge variant="outline" className="w-fit mt-2 bg-primary/10 text-primary border-primary/20">Interested</Badge>
-                        </div>
-                      </div>
-                    </div>
-                  </AccordionContent>
-                </AccordionItem>
-
-                <AccordionItem value="followup" className="border border-border bg-card shadow-sm rounded-xl overflow-hidden data-[state=closed]:border-border">
-                  <AccordionTrigger className="px-6 py-4 hover:no-underline hover:bg-muted/10 transition-colors [&[data-state=open]]:border-b border-border">
-                    <div className="flex items-center gap-2 text-[15px] font-bold text-foreground">
-                      <Calendar className="w-4 h-4" /> Upcoming Follow-Up
-                    </div>
-                  </AccordionTrigger>
-                  <AccordionContent className="p-6 bg-card space-y-4">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="text-[14px] font-bold text-foreground">Scheduled Callback</p>
-                        <p className="text-[12px] text-muted-foreground mt-1 flex items-center gap-1">
-                          <CalendarCheck className="w-3.5 h-3.5" /> Tomorrow at 4:30 PM (IST)
-                        </p>
-                      </div>
-                      <Badge variant="secondary" className="bg-[#E0E7FF] text-[#1e40af] font-bold">High Priority</Badge>
-                    </div>
-                    <div className="bg-muted/30 p-3 rounded-lg border border-border">
-                      <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground mb-1 flex items-center gap-1"><FileText className="w-3 h-3"/> Notes</p>
-                      <p className="text-[13px] text-foreground font-medium">Customer is deciding between the black and natural titanium cover. Call back after they finish work.</p>
-                    </div>
-                    <div className="flex gap-2 pt-2">
-                      <Button variant="outline" size="sm" className="flex-1 font-bold h-9">Reschedule</Button>
-                      <Button variant="outline" size="sm" className="flex-1 font-bold h-9 bg-destructive/10 text-destructive border-destructive/20 hover:bg-destructive hover:text-destructive-foreground shadow-none">Cancel</Button>
-                      <Button size="sm" className="flex-1 font-bold h-9 bg-[#166534] hover:bg-[#166534]/90 text-white shadow-none"><CheckCircle className="w-4 h-4 mr-1.5"/> Complete</Button>
-                    </div>
-                  </AccordionContent>
-                </AccordionItem>
-              </Accordion>
+        {/* Middle Column: Active Session */}
+        {selectedCustomer ? (
+          <div className="flex-1 overflow-y-auto bg-[#F8FAFC] custom-scrollbar p-8">
+            <p className="text-[11px] font-bold uppercase tracking-widest text-blue-700 mb-2">Active Session</p>
+            <div className="flex items-start justify-between mb-8">
+              <h1 className="text-[40px] font-extrabold tracking-tight text-slate-900 w-1/2 leading-none">
+                {`${selectedCustomer.first_name || ''} ${selectedCustomer.last_name || ''}`.trim() || 'Unknown'}
+              </h1>
+              <div className="flex gap-2">
+                <Button variant="outline" size="icon" className="h-10 w-10 border-slate-200 bg-white shadow-sm hover:bg-slate-50 text-slate-600"><Mail className="w-4 h-4" /></Button>
+                <Button variant="outline" size="icon" className="h-10 w-10 border-slate-200 bg-white shadow-sm hover:bg-slate-50 text-slate-600"><MessageSquare className="w-4 h-4" /></Button>
+                {isCalling && (
+                  <Button 
+                    onClick={() => setIsCalling(false)}
+                    variant="outline" 
+                    className="h-10 text-red-600 border-red-200 bg-red-50 hover:bg-red-100 hover:text-red-700 font-bold gap-2 shadow-sm"
+                  >
+                    <PhoneOff className="w-4 h-4" /> End Call
+                  </Button>
+                )}
+              </div>
             </div>
 
-            {/* Right: Interaction Log */}
-            <div className="w-full lg:w-[450px] border-l border-border bg-card flex flex-col shrink-0 h-full">
-              <div className="px-6 py-5 border-b border-border bg-muted/20 shrink-0">
-                <h3 className="text-[15px] font-bold text-foreground">Interaction Log</h3>
-                <p className="text-[13px] text-muted-foreground mt-0.5">Log call outcome and schedule next steps.</p>
+            <div className="grid grid-cols-2 gap-6 mb-8">
+              {/* Customer Profile Card */}
+              <Card className="border-slate-200 shadow-sm bg-white overflow-hidden rounded-2xl flex flex-col">
+                <div className="px-6 py-5 flex items-center gap-3">
+                  <User className="w-5 h-5 text-blue-700" />
+                  <h3 className="font-bold text-[16px] text-slate-900">Customer Profile</h3>
+                </div>
+                <CardContent className="px-6 pb-6 pt-0 flex-1 flex flex-col justify-between">
+                  <div className="grid grid-cols-2 gap-y-6 gap-x-4 mb-6">
+                    <div>
+                      <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Phone</p>
+                      <p className="text-[14px] font-bold text-slate-900">{selectedCustomer.phone || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Email</p>
+                      <p className="text-[14px] font-bold text-slate-900 truncate" title={selectedCustomer.email || ''}>{selectedCustomer.email || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Source</p>
+                      <p className="text-[14px] font-bold text-slate-900 capitalize">{selectedCustomer.source || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Provider</p>
+                      <p className="text-[14px] font-bold text-slate-900 capitalize">{selectedCustomer.provider || 'N/A'}</p>
+                    </div>
+                  </div>
+                  <div className="pt-5 border-t border-slate-100 flex items-end justify-between">
+                    <div>
+                      <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">LTV & Risk Profile</p>
+                      <p className="text-[16px] font-extrabold text-slate-900">₹0.00</p>
+                    </div>
+                    <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-none font-bold">Low Risk</Badge>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Abandoned Cart Card */}
+              <Card className="border-slate-200 shadow-sm bg-white overflow-hidden rounded-2xl flex flex-col">
+                <div className="px-6 py-5 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <ShoppingBag className="w-5 h-5 text-blue-700" />
+                    <h3 className="font-bold text-[16px] text-slate-900">Abandoned Cart</h3>
+                  </div>
+                  <span className="font-extrabold text-[16px] text-slate-900">{formatCurrency(selectedCustomer.cart_value)}</span>
+                </div>
+                <CardContent className="px-6 pb-0 pt-0 flex-1 flex flex-col">
+                  <div className="flex-1 space-y-3 bg-slate-50/50 rounded-xl p-3 border border-slate-100 h-[180px] overflow-y-auto custom-scrollbar">
+                    {activeProducts.length > 0 ? (
+                      activeProducts.map((p: any, i: number) => {
+                        const img = p.image_url || p.imageUrl || p.image || p.img || p.thumbnail || p.src || p.picture;
+                        const name = p.name || p.product_name || p.title || p.item_name || 'Unknown Product';
+                        const qty = p.qty || p.quantity || 1;
+                        
+                        return (
+                          <div key={i} className="flex items-center gap-4">
+                            <div className="w-12 h-12 bg-white rounded-md flex items-center justify-center border border-slate-200 overflow-hidden shrink-0 shadow-sm">
+                              {img ? (
+                                <img src={img} alt={name} className="w-full h-full object-cover" />
+                              ) : (
+                                <ShoppingBag className="w-5 h-5 text-slate-300" />
+                              )}
+                            </div>
+                            <div>
+                              <p className="text-[13px] font-bold text-slate-900 leading-tight">{name}</p>
+                              <p className="text-[12px] text-slate-500 mt-0.5 font-medium">Qty: {qty}</p>
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="flex items-center justify-center h-full text-[13px] text-slate-500 font-medium">
+                        No product details found
+                      </div>
+                    )}
+                  </div>
+                  <div className="py-4 text-center">
+                    <p className="text-[12px] font-medium text-slate-500">Abandoned: {formatTimeAgo(selectedCustomer.abandoned_at)}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Interaction History */}
+            <div className="mb-6 flex items-center gap-2">
+              <History className="w-4 h-4 text-blue-700" />
+              <h3 className="font-extrabold text-[18px] text-slate-900">Interaction History</h3>
+            </div>
+            
+            <div className="relative pl-6 space-y-6 before:absolute before:inset-0 before:ml-[11px] before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-[2px] before:bg-slate-200">
+              {/* Timeline Item 1 */}
+              <div className="relative flex items-start gap-5">
+                <div className="absolute left-[calc(-1.5rem-2px)] top-1 h-7 w-7 rounded-full border-2 border-[#F8FAFC] bg-green-100 flex items-center justify-center shadow-sm z-10">
+                  <PhoneCall className="h-3.5 w-3.5 text-green-700" />
+                </div>
+                <Card className="flex-1 shadow-sm border-slate-200 bg-white rounded-2xl">
+                  <div className="p-5 flex flex-col gap-3">
+                    <div className="flex justify-between items-start">
+                      <div className="flex items-center gap-3">
+                        <p className="font-extrabold text-[15px] text-slate-900">Outbound Call</p>
+                        <Badge className="bg-green-100 text-green-700 hover:bg-green-100 font-bold text-[11px] h-6 border-none px-2.5">Converted</Badge>
+                      </div>
+                      <div className="text-right flex flex-col gap-0.5">
+                        <p className="text-[12px] font-medium text-slate-500">Oct 12, 10:45 AM</p>
+                        <p className="text-[11px] text-slate-400 font-medium">(Previous Order)</p>
+                      </div>
+                    </div>
+                    <p className="text-[14px] text-slate-700 font-medium leading-relaxed max-w-2xl">
+                      Customer had questions about warranty. Offered a 15% discount code to close the sale. Customer completed purchase on the phone.
+                    </p>
+                    <div className="flex gap-3 mt-2">
+                      <Button variant="outline" size="sm" className="h-9 px-4 text-[12px] font-bold text-blue-700 border-blue-200 bg-blue-50/50 hover:bg-blue-50 hover:text-blue-800 gap-2 shadow-sm rounded-lg">
+                        <PlayCircle className="w-4 h-4" /> Play Recording (4:12)
+                      </Button>
+                      <Button variant="outline" size="sm" className="h-9 px-4 text-[12px] font-bold text-slate-600 gap-2 shadow-sm rounded-lg border-slate-200 hover:bg-slate-50">
+                        <Sparkles className="w-4 h-4" /> AI Summary
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
               </div>
 
-              <div className="p-6 flex flex-col gap-6 flex-1 overflow-y-auto custom-scrollbar">
-                {/* 1. Outcome Selector */}
-                <div className="space-y-3">
-                  <label className="text-[11px] font-bold uppercase tracking-[0.05em] text-muted-foreground">Outcome</label>
-                  <Select defaultValue="followup">
-                    <SelectTrigger className="w-full h-11 font-bold text-[14px] bg-background border-border">
-                      <SelectValue placeholder="Select Outcome" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="recovered" className="font-bold text-[#166534]">Recovered</SelectItem>
-                      <SelectItem value="followup" className="font-bold text-primary">Follow Up</SelectItem>
-                      <SelectItem value="not_interested" className="font-bold text-destructive">Not Interested</SelectItem>
-                      <SelectItem value="no_response" className="font-bold">No Response</SelectItem>
-                      <SelectItem value="wrong_number" className="font-bold">Wrong Number</SelectItem>
-                    </SelectContent>
-                  </Select>
+              {/* Timeline Item 2 */}
+              <div className="relative flex items-start gap-5">
+                <div className="absolute left-[calc(-1.5rem-2px)] top-1 h-7 w-7 rounded-full border-2 border-[#F8FAFC] bg-slate-200 flex items-center justify-center shadow-sm z-10">
+                  <MessageSquare className="h-3.5 w-3.5 text-slate-600" />
                 </div>
+                <Card className="flex-1 shadow-sm border-slate-200 bg-white/80 rounded-2xl">
+                  <div className="p-5">
+                    <div className="flex justify-between items-center mb-3">
+                      <div className="flex items-center gap-3">
+                        <p className="font-extrabold text-[15px] text-slate-900">Automated SMS</p>
+                        <Badge variant="secondary" className="bg-slate-100 text-slate-600 font-bold text-[11px] h-6 px-2.5">Delivered</Badge>
+                      </div>
+                      <p className="text-[12px] font-medium text-slate-500">Today, 1:00 PM</p>
+                    </div>
+                    <p className="text-[14px] text-slate-600 font-medium">
+                      "Hi {selectedCustomer.first_name || 'there'}, you left something behind! Use code RETURN10 for 10% off your cart."
+                    </p>
+                  </div>
+                </Card>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="flex-1 flex flex-col items-center justify-center bg-[#F8FAFC] text-slate-500">
+            <User className="w-12 h-12 mb-4 opacity-50" />
+            <p className="font-medium">No customer selected.</p>
+          </div>
+        )}
 
-                {/* 2. Interaction Notes */}
-                <div className="space-y-3">
-                  <label className="text-[11px] font-bold uppercase tracking-[0.05em] text-muted-foreground">Interaction Notes</label>
-                  <Textarea 
-                    className="w-full min-h-[120px] resize-none bg-background border-border font-medium text-[13px] p-4" 
-                    placeholder="Enter details of the conversation..."
-                  />
+        {/* Right Column: Call Controls & Logging */}
+        <div className="w-[320px] lg:w-[350px] shrink-0 bg-white border-l border-border flex flex-col z-10 shadow-[-4px_0_24px_-12px_rgba(0,0,0,0.1)]">
+          
+          <div className="p-6 pb-6 border-b border-slate-100">
+            <p className="text-[11px] font-bold uppercase tracking-widest text-blue-700 mb-3">Call Controls</p>
+            {isCalling ? (
+              <div className="border border-blue-200 bg-[#F0F5FF] rounded-xl p-4 flex items-center justify-between shadow-sm">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center relative">
+                    <div className="absolute inset-0 rounded-full bg-green-100 animate-ping opacity-75"></div>
+                    <Mic className="w-5 h-5 text-green-700 relative z-10" />
+                  </div>
+                  <div>
+                    <p className="font-extrabold text-[15px] text-slate-900">In Progress</p>
+                    <p className="text-[14px] font-bold text-green-600 font-mono mt-0.5">00:00</p>
+                  </div>
                 </div>
+                <div className="flex items-center gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="icon" 
+                    className={`rounded-full h-11 w-11 transition-colors ${isMuted ? 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100 hover:text-red-700' : 'bg-white border-slate-200 text-slate-600 shadow-sm hover:bg-slate-50'}`}
+                    onClick={() => setIsMuted(!isMuted)}
+                  >
+                    <MicOff className="w-5 h-5" />
+                  </Button>
+                  <Button 
+                    variant="destructive" 
+                    size="icon" 
+                    className="rounded-full h-11 w-11 shadow-sm bg-red-600 hover:bg-red-700 text-white"
+                    onClick={() => setIsCalling(false)}
+                  >
+                    <PhoneOff className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <Button 
+                onClick={() => setIsCalling(true)}
+                className="w-full h-14 bg-[#16a34a] hover:bg-[#15803d] text-white font-extrabold text-[15px] shadow-sm rounded-xl flex items-center justify-center gap-2"
+              >
+                <PhoneCall className="w-5 h-5" /> Call Customer
+              </Button>
+            )}
+          </div>
 
-                {/* 3. Follow-Up Section */}
-                <div className="space-y-4 p-5 bg-muted/30 rounded-xl border border-border">
-                  <label className="text-[13px] font-bold text-foreground flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-primary" /> Schedule Follow-Up
-                  </label>
-                  
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-2">
-                      <label className="text-[11px] font-bold text-muted-foreground">Date</label>
-                      <Input type="date" className="h-10 text-[13px] font-medium bg-background border-border" />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-[11px] font-bold text-muted-foreground">Time</label>
-                      <Input type="time" className="h-10 text-[13px] font-medium bg-background border-border" />
-                    </div>
+          <div className="px-6 py-6 flex-1 overflow-y-auto custom-scrollbar flex flex-col justify-between">
+            <div className="space-y-6">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-widest text-blue-700 mb-4">Log Outcome</p>
+                
+                <div className="space-y-5">
+                  <div className="space-y-2">
+                    <label className="text-[12px] font-bold text-slate-900">Call Outcome</label>
+                    <Select defaultValue="select">
+                      <SelectTrigger className="w-full h-11 bg-white border-slate-200 text-[13px] font-bold text-slate-900 shadow-sm focus:ring-1 focus:ring-blue-500 rounded-lg">
+                        <SelectValue placeholder="Select Outcome..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="select" disabled>Select Outcome...</SelectItem>
+                        <SelectItem value="recovered">Recovered</SelectItem>
+                        <SelectItem value="followup">Follow Up</SelectItem>
+                        <SelectItem value="noanswer">No Answer</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-[11px] font-bold text-muted-foreground">Reason</label>
-                    <Input type="text" placeholder="e.g. Waiting for salary" className="h-10 text-[13px] font-medium bg-background border-border" />
+                    <label className="text-[12px] font-bold text-slate-900">Abandonment Reason</label>
+                    <Select defaultValue="select">
+                      <SelectTrigger className="w-full h-11 bg-white border-slate-200 text-[13px] font-bold text-slate-900 shadow-sm focus:ring-1 focus:ring-blue-500 rounded-lg">
+                        <SelectValue placeholder="Select Reason..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="select" disabled>Select Reason...</SelectItem>
+                        <SelectItem value="price">Price too high</SelectItem>
+                        <SelectItem value="shipping">Shipping cost</SelectItem>
+                        <SelectItem value="justlooking">Just looking</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[12px] font-bold text-slate-900">Quick Notes</label>
+                    <Textarea 
+                      className="min-h-[120px] resize-none text-[13px] bg-white border-slate-200 shadow-sm placeholder:text-slate-400 font-medium rounded-xl p-4 focus-visible:ring-1 focus-visible:ring-blue-500"
+                      placeholder="Enter details about the call..."
+                    />
                   </div>
                 </div>
               </div>
 
-              {/* 4. Primary Action Button */}
-              <div className="p-6 border-t border-border bg-muted/10 shrink-0">
-                <Button className="w-full h-12 text-[15px] font-extrabold shadow-sm bg-primary hover:bg-primary/90 text-primary-foreground" onClick={() => setSelectedCustomer(null)}>
-                  <Save className="w-4 h-4 mr-2" /> Save Interaction
+              <Button className="w-full h-12 bg-blue-700 hover:bg-blue-800 text-white font-bold text-[14px] shadow-md rounded-xl">
+                Save & Next Cart
+              </Button>
+            </div>
+
+            <div className="pt-6 mt-6 border-t border-slate-100">
+              <p className="text-[11px] font-bold uppercase tracking-widest text-blue-700 mb-3">Quick Actions</p>
+              <div className="space-y-2.5">
+                <Button variant="outline" className="w-full justify-between h-12 bg-white border-slate-200 shadow-sm font-bold text-[13px] text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-xl">
+                  <span className="flex items-center gap-2.5"><Send className="w-4 h-4 text-blue-600" /> Send 15% SMS</span>
+                  <ChevronDown className="w-4 h-4 text-slate-400 -rotate-90" />
+                </Button>
+                <Button variant="outline" className="w-full justify-between h-12 bg-white border-slate-200 shadow-sm font-bold text-[13px] text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-xl">
+                  <span className="flex items-center gap-2.5"><CalendarPlus className="w-4 h-4 text-blue-600" /> Schedule Callback</span>
+                  <ChevronDown className="w-4 h-4 text-slate-400 -rotate-90" />
                 </Button>
               </div>
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      </div>
     </div>
   );
 }

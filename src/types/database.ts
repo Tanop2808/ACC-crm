@@ -20,6 +20,8 @@ export interface CustomerRecovery {
   follow_up: string | null;
   notes: string | null;
   abandoned_at: string | null;
+  source: string | null;
+  provider: string | null;
 }
 
 export interface Database {

@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Search, User, MapPin, Mail, Phone, Calendar, ShoppingCart, Clock, AlertCircle, CalendarCheck, CheckCircle2, ShoppingBag, History, Loader2 } from "lucide-react";
+import { Search, User, MapPin, Mail, Phone, Calendar, ShoppingCart, Clock, AlertCircle, CalendarCheck, CheckCircle2, ShoppingBag, History, Loader2, Globe, CreditCard } from "lucide-react";
 import { getCustomers } from "@/services/customerService";
 
 export default function CustomersPage() {
@@ -17,6 +17,10 @@ export default function CustomersPage() {
   const [customersData, setCustomersData] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sourceFilter, setSourceFilter] = useState("all");
+  const [providerFilter, setProviderFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
 
   useEffect(() => {
     async function loadCustomers() {
@@ -40,13 +44,23 @@ export default function CustomersPage() {
           }
 
           const cartDetailsStr = products.length > 0 
-            ? products.map((p: any) => p.name).join(', ') 
+            ? products.map((p: any) => p.name || p.product_name || p.title || p.item_name || 'Unknown Product').join(', ') 
             : 'Unknown items';
 
           let dateTimeStr = 'N/A';
           if (item.abandoned_at) {
-            const date = new Date(item.abandoned_at);
-            const formatter = new Intl.DateTimeFormat('en-US', { 
+            let dateStr = item.abandoned_at;
+            // Convert 'YYYY-MM-DD HH:MM:SS' to 'YYYY-MM-DDTHH:MM:SS'
+            if (dateStr.includes(' ') && !dateStr.includes('T')) {
+              dateStr = dateStr.replace(' ', 'T');
+            }
+            // If it lacks 'Z' and lacks a timezone offset at the end (like +00:00 or -05:00), append 'Z'
+            if (!dateStr.endsWith('Z') && !dateStr.match(/[+-]\d{2}:?\d{2}$/)) {
+              dateStr += 'Z';
+            }
+            const date = new Date(dateStr);
+            const formatter = new Intl.DateTimeFormat('en-US', {  
+              timeZone: 'Asia/Kolkata',
               day: 'numeric', month: 'short', year: 'numeric',
               hour: 'numeric', minute: '2-digit', hour12: true 
             });
@@ -59,6 +73,8 @@ export default function CustomersPage() {
             email: item.email || 'N/A',
             phone: item.phone || 'N/A',
             location: 'N/A', 
+            source: item.source || 'N/A',
+            provider: item.provider || 'N/A',
             cartStatus: item.follow_up || 'Pending',
             cartStatusColor: "bg-[#E0E7FF] text-[#1e40af]", 
             cartValue: item.cart_value ? `₹${item.cart_value.toLocaleString()}` : '₹0',
@@ -80,6 +96,27 @@ export default function CustomersPage() {
     loadCustomers();
   }, []);
 
+  const uniqueSources = Array.from(new Set(customersData.map((row) => row.source).filter(Boolean)));
+  const uniqueProviders = Array.from(new Set(customersData.map((row) => row.provider).filter(Boolean)));
+  const uniqueStatuses = Array.from(new Set(customersData.map((row) => row.lastActivity).filter(Boolean)));
+
+  const filteredCustomers = customersData.filter((row) => {
+    const matchesSource = sourceFilter === "all" || row.source === sourceFilter;
+    const matchesProvider = providerFilter === "all" || row.provider === providerFilter;
+    const matchesStatus = statusFilter === "all" || row.lastActivity === statusFilter;
+    
+    if (!matchesSource || !matchesProvider || !matchesStatus) return false;
+    if (!searchQuery) return true;
+    
+    const lowerQuery = searchQuery.toLowerCase();
+    return (
+      (row.name && row.name.toLowerCase().includes(lowerQuery)) ||
+      (row.email && row.email.toLowerCase().includes(lowerQuery)) ||
+      (row.phone && row.phone.toLowerCase().includes(lowerQuery)) ||
+      (row.cartDetails && row.cartDetails.toLowerCase().includes(lowerQuery))
+    );
+  });
+
   return (
     <div className="flex flex-col gap-6 pb-12 h-full max-w-[1600px] mx-auto">
       {/* Header */}
@@ -94,19 +131,47 @@ export default function CustomersPage() {
         {/* Search */}
         <div className="flex items-center bg-card border border-border focus-within:border-primary transition-all rounded-md px-3 h-10 w-full md:w-[400px]">
           <Search className="w-4 h-4 text-muted-foreground mr-2" />
-          <input 
+          <Input 
             className="bg-transparent border-none focus:ring-0 text-[13px] w-full outline-none font-medium placeholder:text-muted-foreground" 
             placeholder="Search name, email, phone, or cart ID..." 
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
 
         {/* Filters */}
-        <div className="flex flex-wrap gap-2">
-          <Badge variant="outline" className="bg-primary text-primary-foreground hover:bg-primary cursor-pointer px-3 py-1">All Customers</Badge>
-          <Badge variant="outline" className="cursor-pointer hover:bg-muted px-3 py-1">Active Recovery</Badge>
-          <Badge variant="outline" className="cursor-pointer hover:bg-muted px-3 py-1">Follow-Up Pending</Badge>
-          <Badge variant="outline" className="cursor-pointer hover:bg-muted px-3 py-1">Recovered</Badge>
-          <Badge variant="outline" className="cursor-pointer hover:bg-muted px-3 py-1">Closed</Badge>
+        <div className="flex flex-wrap items-center gap-3">
+          <select
+            value={sourceFilter}
+            onChange={(e) => setSourceFilter(e.target.value)}
+            className="h-10 px-3 bg-card border border-border rounded-md text-[13px] font-medium outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary capitalize"
+          >
+            <option value="all">All Sources</option>
+            {uniqueSources.map((source: any) => (
+              <option key={source} value={source}>{source}</option>
+            ))}
+          </select>
+          <select
+            value={providerFilter}
+            onChange={(e) => setProviderFilter(e.target.value)}
+            className="h-10 px-3 bg-card border border-border rounded-md text-[13px] font-medium outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary capitalize"
+          >
+            <option value="all">All Providers</option>
+            {uniqueProviders.map((provider: any) => (
+              <option key={provider} value={provider}>{provider}</option>
+            ))}
+          </select>
+          <div className="w-[1px] h-6 bg-border mx-1 hidden lg:block"></div>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="h-10 px-3 bg-card border border-border rounded-md text-[13px] font-medium outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary capitalize"
+          >
+            <option value="all">All Statuses</option>
+            {uniqueStatuses.map((status: any) => (
+              <option key={status} value={status}>{status}</option>
+            ))}
+          </select>
         </div>
       </div>
 
@@ -123,10 +188,10 @@ export default function CustomersPage() {
             <p className="font-medium text-[14px] text-center max-w-md">Failed to load customers: {error}</p>
             <p className="text-[12px] mt-2 opacity-80">Make sure your Supabase environment variables are set in .env.local</p>
           </div>
-        ) : customersData.length === 0 ? (
+        ) : filteredCustomers.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center p-12 text-muted-foreground">
             <User className="w-8 h-8 mb-4 opacity-50" />
-            <p className="font-medium text-[14px]">No customers found in database.</p>
+            <p className="font-medium text-[14px]">{searchQuery ? "No customers found matching your search." : "No customers found in database."}</p>
           </div>
         ) : (
           <div className="overflow-x-auto flex-1">
@@ -135,6 +200,8 @@ export default function CustomersPage() {
               <TableRow>
                 <TableHead className="text-[11px] font-bold tracking-[0.05em] text-muted-foreground uppercase h-10 px-6">Date & Time</TableHead>
                 <TableHead className="text-[11px] font-bold tracking-[0.05em] text-muted-foreground uppercase h-10 px-6">Customer Name</TableHead>
+                <TableHead className="text-[11px] font-bold tracking-[0.05em] text-muted-foreground uppercase h-10 px-6">Source</TableHead>
+                <TableHead className="text-[11px] font-bold tracking-[0.05em] text-muted-foreground uppercase h-10 px-6">Provider</TableHead>
                 <TableHead className="text-[11px] font-bold tracking-[0.05em] text-muted-foreground uppercase h-10 px-6">Cart Details</TableHead>
                 <TableHead className="text-[11px] font-bold tracking-[0.05em] text-muted-foreground uppercase h-10 px-6">Cart Value</TableHead>
                 <TableHead className="text-[11px] font-bold tracking-[0.05em] text-muted-foreground uppercase h-10 px-6">Recovery Status</TableHead>
@@ -142,7 +209,7 @@ export default function CustomersPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {customersData.map((row, i) => (
+              {filteredCustomers.map((row, i) => (
                 <TableRow key={i} className="hover:bg-muted/30 border-border h-[72px]">
                   <TableCell className="px-6 font-medium text-[13px] text-muted-foreground whitespace-nowrap">
                     {row.dateTime.split(', ')[0]}<br />
@@ -151,6 +218,12 @@ export default function CustomersPage() {
                   <TableCell className="px-6">
                     <p className="font-bold text-[15px] text-foreground whitespace-nowrap">{row.name}</p>
                     <p className="text-[12px] text-muted-foreground truncate">{row.email}</p>
+                  </TableCell>
+                  <TableCell className="px-6 font-medium text-[13px] text-foreground capitalize">
+                    {row.source}
+                  </TableCell>
+                  <TableCell className="px-6 font-medium text-[13px] text-foreground capitalize">
+                    {row.provider}
                   </TableCell>
                   <TableCell className="px-6 font-medium text-[13px] text-foreground max-w-[250px] truncate">
                     <button 
@@ -225,6 +298,16 @@ export default function CustomersPage() {
                     <div className="flex items-center gap-3 text-[13px]">
                       <MapPin className="w-4 h-4 text-muted-foreground shrink-0" />
                       <span className="font-medium text-foreground">{selectedCustomer?.location}</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-[13px] pt-2 border-t border-border mt-2">
+                      <Globe className="w-4 h-4 text-muted-foreground shrink-0" />
+                      <span className="font-medium text-foreground capitalize">{selectedCustomer?.source}</span>
+                      <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest ml-auto">Source</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-[13px]">
+                      <CreditCard className="w-4 h-4 text-muted-foreground shrink-0" />
+                      <span className="font-medium text-foreground capitalize">{selectedCustomer?.provider}</span>
+                      <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest ml-auto">Provider</span>
                     </div>
                   </div>
                 </CardContent>
@@ -400,18 +483,18 @@ export default function CustomersPage() {
             </DialogTitle>
           </DialogHeader>
           <div className="py-2 space-y-3">
-            {cartDialogCustomer?.cartItems?.map((item: any) => (
-              <div key={item.id} className="flex justify-between items-center bg-muted/20 p-3 rounded-lg border border-border">
+            {cartDialogCustomer?.cartItems?.map((item: any, index: number) => (
+              <div key={item.id || `cart-item-${index}`} className="flex justify-between items-center bg-muted/20 p-3 rounded-lg border border-border">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-primary/10 rounded flex items-center justify-center shrink-0">
                     <ShoppingBag className="w-5 h-5 text-primary" />
                   </div>
                   <div>
-                    <p className="text-[14px] font-bold text-foreground">{item.name}</p>
-                    <p className="text-[12px] font-medium text-muted-foreground">Qty: {item.qty}</p>
+                    <p className="text-[14px] font-bold text-foreground">{item.name || item.product_name || item.title || item.item_name || 'Unknown Product'}</p>
+                    <p className="text-[12px] font-medium text-muted-foreground">Qty: {item.qty || item.quantity || 1}</p>
                   </div>
                 </div>
-                <p className="text-[14px] font-extrabold text-foreground shrink-0">{item.price}</p>
+                <p className="text-[14px] font-extrabold text-foreground shrink-0">{item.price || item.amount || ''}</p>
               </div>
             ))}
             <div className="border-t border-border pt-4 flex justify-between items-center mt-2">

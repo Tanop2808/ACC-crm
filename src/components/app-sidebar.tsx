@@ -20,7 +20,6 @@ const items = [
   { title: "Customers", url: "/customers", icon: Users },
   { title: "Assigned Carts", url: "/agent/recovery", icon: ShoppingBag },
   { title: "Follow-Ups", url: "/agent/follow-ups", icon: CalendarCheck },
-  { title: "Recovery Queue", url: "/recovery-queue", icon: Clock },
   { title: "Settings", url: "/settings", icon: Settings },
 ]
 
@@ -39,7 +38,7 @@ export function AppSidebar() {
           <SidebarGroupLabel className="text-[10px] font-bold tracking-[0.12em] uppercase text-muted-foreground mt-4 mb-2">Telemetry</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {items.slice(0, 5).map((item) => (
+              {items.slice(0, 4).map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton render={<Link href={item.url} className="flex items-center gap-3" />} isActive={pathname === item.url}>
                     <item.icon className="h-4 w-4" />
@@ -55,7 +54,7 @@ export function AppSidebar() {
           <SidebarGroupLabel className="text-[10px] font-bold tracking-[0.12em] uppercase text-muted-foreground mt-4 mb-2">System</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {items.slice(5).map((item) => (
+              {items.slice(4).map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton render={<Link href={item.url} className="flex items-center gap-3" />} isActive={pathname === item.url}>
                     <item.icon className="h-4 w-4" />

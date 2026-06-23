@@ -261,7 +261,15 @@ export default function CustomersPage() {
             </DialogTitle>
           </DialogHeader>
           
-          <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {(() => {
+            const customerHistory = selectedCustomer ? customersData.filter(c => 
+              (c.customer_id && c.customer_id === selectedCustomer.customer_id) || 
+              (c.phone && c.phone !== 'N/A' && c.phone === selectedCustomer.phone) ||
+              (c.email && c.email !== 'N/A' && c.email === selectedCustomer.email)
+            ) : [];
+
+            return (
+              <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
             
             {/* Left Column: Profile & Follow-Up (Narrower) */}
             <div className="flex flex-col gap-6 lg:col-span-1">
@@ -324,17 +332,28 @@ export default function CustomersPage() {
                   <div className="flex justify-between items-start">
                     <div>
                       <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Next Follow-Up</p>
-                      <p className="text-[14px] font-bold text-foreground">Tomorrow, 4:30 PM</p>
+                      <p className="text-[14px] font-bold text-foreground">{selectedCustomer?.follow_up || 'Not scheduled'}</p>
                     </div>
-                    <Badge variant="secondary" className="bg-[#E0E7FF] text-[#1e40af] font-bold">Scheduled</Badge>
+                    <Badge variant="secondary" className="bg-[#E0E7FF] text-[#1e40af] font-bold">
+                      {selectedCustomer?.follow_up ? 'Scheduled' : 'Pending'}
+                    </Badge>
                   </div>
-                  <div className="bg-muted/30 p-3 rounded-lg border border-border">
-                    <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Assigned Agent</p>
-                    <div className="text-[13px] text-foreground font-medium flex items-center gap-2">
-                      <div className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary">A</div>
-                      Agent Michael
+                  {selectedCustomer?.notes ? (
+                    <div className="bg-muted/30 p-3 rounded-lg border border-border">
+                      <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Agent Notes</p>
+                      <div className="text-[13px] text-foreground font-medium">
+                        {selectedCustomer?.notes}
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="bg-muted/30 p-3 rounded-lg border border-border">
+                      <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Assigned Agent</p>
+                      <div className="text-[13px] text-foreground font-medium flex items-center gap-2">
+                        <div className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary">A</div>
+                        Pending Assignment
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -399,24 +418,19 @@ export default function CustomersPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      <TableRow className="border-border">
-                        <TableCell className="px-6 font-mono text-[12px] text-foreground">{selectedCustomer?.cartId}</TableCell>
-                        <TableCell className="px-6 text-[13px] text-muted-foreground">Oct 24, 2024</TableCell>
-                        <TableCell className="px-6 text-[13px] font-medium text-foreground max-w-[200px] truncate">iPhone 15 Pro Cover (x2), Charger</TableCell>
-                        <TableCell className="px-6 font-bold text-[13px] text-foreground">{selectedCustomer?.cartValue}</TableCell>
-                        <TableCell className="px-6">
-                          <Badge variant="outline" className="bg-[#FEF3C7]/50 text-[#92400e] border-[#92400e]/20 text-[10px]">Active</Badge>
-                        </TableCell>
-                      </TableRow>
-                      <TableRow className="border-border">
-                        <TableCell className="px-6 font-mono text-[12px] text-foreground">CRT-10024X</TableCell>
-                        <TableCell className="px-6 text-[13px] text-muted-foreground">Aug 12, 2023</TableCell>
-                        <TableCell className="px-6 text-[13px] font-medium text-foreground max-w-[200px] truncate">AirPods Pro</TableCell>
-                        <TableCell className="px-6 font-bold text-[13px] text-foreground">₹24,900</TableCell>
-                        <TableCell className="px-6">
-                          <Badge variant="outline" className="bg-[#DCFCE7]/50 text-[#166534] border-[#166534]/20 text-[10px]">Recovered</Badge>
-                        </TableCell>
-                      </TableRow>
+                      {customerHistory.map((cart, idx) => (
+                        <TableRow key={idx} className="border-border">
+                          <TableCell className="px-6 font-mono text-[12px] text-foreground">{cart.cartId}</TableCell>
+                          <TableCell className="px-6 text-[13px] text-muted-foreground">{cart.dateTime.split(', ')[0]}</TableCell>
+                          <TableCell className="px-6 text-[13px] font-medium text-foreground max-w-[200px] truncate" title={cart.cartDetails}>{cart.cartDetails}</TableCell>
+                          <TableCell className="px-6 font-bold text-[13px] text-foreground">{cart.cartValue}</TableCell>
+                          <TableCell className="px-6">
+                            <Badge variant="outline" className={cart.lastActivity === "Recovered" ? "bg-[#DCFCE7]/50 text-[#166534] border-[#166534]/20 text-[10px]" : "bg-[#FEF3C7]/50 text-[#92400e] border-[#92400e]/20 text-[10px]"}>
+                              {cart.lastActivity || 'Active'}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      ))}
                     </TableBody>
                   </Table>
                 </CardContent>
@@ -431,46 +445,56 @@ export default function CustomersPage() {
                 </CardHeader>
                 <CardContent className="p-6">
                   <div className="relative border-l-2 border-border ml-3 space-y-8 py-2">
-                    <div className="relative pl-6">
-                      <div className="absolute w-4 h-4 bg-background border-2 border-primary rounded-full -left-[9px] top-1" />
-                      <div className="flex flex-col gap-1">
-                        <p className="text-[13px] font-bold text-foreground">Follow-Up Scheduled</p>
-                        <p className="text-[11px] font-medium text-muted-foreground">Today, 11:15 AM</p>
-                        <p className="text-[12px] text-muted-foreground mt-2 italic bg-muted/30 p-3 rounded border border-border">"Customer requested callback tomorrow evening."</p>
+                    
+                    {selectedCustomer?.follow_up && (
+                      <div className="relative pl-6">
+                        <div className="absolute w-4 h-4 bg-background border-2 border-primary rounded-full -left-[9px] top-1" />
+                        <div className="flex flex-col gap-1">
+                          <p className="text-[13px] font-bold text-foreground">Follow-Up Scheduled</p>
+                          <p className="text-[11px] font-medium text-muted-foreground">{selectedCustomer?.follow_up}</p>
+                          {selectedCustomer?.notes && (
+                            <p className="text-[12px] text-muted-foreground mt-2 italic bg-muted/30 p-3 rounded border border-border">"{selectedCustomer?.notes}"</p>
+                          )}
+                        </div>
                       </div>
-                    </div>
+                    )}
 
-                    <div className="relative pl-6">
-                      <div className="absolute w-4 h-4 bg-background border-2 border-destructive rounded-full -left-[9px] top-1" />
-                      <div className="flex flex-col gap-1">
-                        <p className="text-[13px] font-bold text-foreground">Call Attempt (No Answer)</p>
-                        <p className="text-[11px] font-medium text-muted-foreground">Today, 11:10 AM</p>
+                    {selectedCustomer?.call_status && (
+                      <div className="relative pl-6">
+                        <div className="absolute w-4 h-4 bg-background border-2 border-[#f59e0b] rounded-full -left-[9px] top-1" />
+                        <div className="flex flex-col gap-1">
+                          <p className="text-[13px] font-bold text-foreground">Call Status</p>
+                          <p className="text-[11px] font-medium text-muted-foreground">{selectedCustomer?.call_status}</p>
+                        </div>
                       </div>
-                    </div>
+                    )}
 
                     <div className="relative pl-6">
                       <div className="absolute w-4 h-4 bg-background border-2 border-destructive rounded-full -left-[9px] top-1" />
                       <div className="flex flex-col gap-1">
                         <p className="text-[13px] font-bold text-foreground">Cart Abandoned</p>
-                        <p className="text-[11px] font-medium text-muted-foreground">Today, 10:30 AM</p>
+                        <p className="text-[11px] font-medium text-muted-foreground">{selectedCustomer?.dateTime}</p>
                       </div>
                     </div>
 
-                    <div className="relative pl-6">
-                      <div className="absolute w-4 h-4 bg-[#DCFCE7] border-2 border-[#166534] rounded-full -left-[9px] top-1 flex items-center justify-center">
-                        <div className="w-1.5 h-1.5 rounded-full bg-[#166534]" />
+                    {selectedCustomer?.lastActivity === 'Recovered' && (
+                      <div className="relative pl-6">
+                        <div className="absolute w-4 h-4 bg-[#DCFCE7] border-2 border-[#166534] rounded-full -left-[9px] top-1 flex items-center justify-center">
+                          <div className="w-1.5 h-1.5 rounded-full bg-[#166534]" />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <p className="text-[13px] font-bold text-foreground">Cart Recovered</p>
+                          <p className="text-[11px] font-medium text-muted-foreground">Successful Recovery</p>
+                        </div>
                       </div>
-                      <div className="flex flex-col gap-1">
-                        <p className="text-[13px] font-bold text-foreground">Previous Recovery Success</p>
-                        <p className="text-[11px] font-medium text-muted-foreground">Aug 14, 2023</p>
-                      </div>
-                    </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
 
             </div>
           </div>
+          );})()}
         </DialogContent>
       </Dialog>
 

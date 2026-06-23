@@ -11,30 +11,37 @@ import {
   Search, Bell, History, Mail, MessageSquare, PhoneOff, User, 
   ShoppingBag, Mic, MicOff, Send, CalendarPlus, CheckCircle2, Clock, AlertTriangle, PlayCircle, Sparkles, ChevronDown, PhoneCall, Loader2
 } from "lucide-react";
-import { getCustomers } from "@/services/customerService";
-import { CustomerRecovery } from "@/types/database";
+import { getAssignedCarts, getCartTimeline, updateRecoveryStatus, addNote, scheduleFollowUp, getAgents, TEMP_LOGGED_IN_AGENT_ID } from "@/services/agentRecoveryService";
 import { supabase } from "@/lib/supabase";
 
 export default function AssignedCartsPage() {
-  const [activeTab, setActiveTab] = useState("high_value");
+  const [activeTab, setActiveTab] = useState("recent");
   const [isMuted, setIsMuted] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isCalling, setIsCalling] = useState(false);
   
-  const [customers, setCustomers] = useState<CustomerRecovery[]>([]);
+  const [agents, setAgents] = useState<any[]>([]);
+  const [activeAgentId, setActiveAgentId] = useState(TEMP_LOGGED_IN_AGENT_ID);
+  
+  const [customers, setCustomers] = useState<any[]>([]);
+  const [timeline, setTimeline] = useState<any[]>([]);
+  const [quickNotes, setQuickNotes] = useState("");
+  const [statusVal, setStatusVal] = useState("select");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedCartId, setSelectedCartId] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function loadData() {
-      setIsLoading(true);
-      const { data, error: fetchError } = await getCustomers();
-      if (fetchError) {
-        setError(fetchError.message);
-      } else if (data) {
-        setCustomers(data);
-        // Find first high value item to select by default based on initial tab
+  async function loadData() {
+    setIsLoading(true);
+    const { data: agentsData } = await getAgents();
+    if (agentsData) setAgents(agentsData);
+
+    const { data, error: fetchError } = await getAssignedCarts(activeAgentId);
+    if (fetchError) {
+      setError(fetchError.message);
+    } else if (data) {
+      setCustomers(data);
+      if (!selectedCartId) {
         const highValue = data.filter(c => (c.cart_value || 0) >= 5000);
         if (highValue.length > 0) {
           setSelectedCartId(highValue[0].cart_id);
@@ -42,37 +49,87 @@ export default function AssignedCartsPage() {
           setSelectedCartId(data[0].cart_id);
         }
       }
-      setIsLoading(false);
     }
-    loadData();
+    setIsLoading(false);
+  }
 
-    const channel = supabase
-      .channel('realtime-recoveries')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'customer_recoveries',
-        },
-        (payload) => {
-          if (payload.eventType === 'INSERT') {
-            setCustomers((prev) => [payload.new as CustomerRecovery, ...prev]);
-          } else if (payload.eventType === 'UPDATE') {
-            setCustomers((prev) => 
-              prev.map((c) => c.cart_id === payload.new.cart_id ? payload.new as CustomerRecovery : c)
-            );
-          } else if (payload.eventType === 'DELETE') {
-            setCustomers((prev) => prev.filter((c) => c.cart_id !== payload.old.cart_id));
-          }
-        }
-      )
+  async function loadTimeline(cartId: string) {
+    const { data } = await getCartTimeline(cartId);
+    if (data) setTimeline(data);
+  }
+
+  useEffect(() => {
+    loadData();
+  }, [activeAgentId]);
+
+  useEffect(() => {
+    const channel1 = supabase
+      .channel('realtime-assignments')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'cart_assignments' }, () => loadData())
+      .subscribe();
+      
+    const channel2 = supabase
+      .channel('realtime-status')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'cart_recovery_status' }, () => loadData())
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(channel1);
+      supabase.removeChannel(channel2);
     };
   }, []);
+
+  useEffect(() => {
+    if (selectedCartId) {
+      loadTimeline(selectedCartId);
+    }
+  }, [selectedCartId]);
+
+  useEffect(() => {
+    const channel3 = supabase
+      .channel('realtime-logs')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'support_activity_logs' }, () => {
+        if (selectedCartId) loadTimeline(selectedCartId);
+      })
+      .subscribe();
+      
+    return () => {
+      supabase.removeChannel(channel3);
+    };
+  }, [selectedCartId]);
+
+  async function handleSaveNext() {
+    if (!selectedCustomer) return;
+    
+    setIsLoading(true);
+    if (statusVal !== 'select') {
+      await updateRecoveryStatus(selectedCustomer.cart_id, selectedCustomer.assignment_id, selectedCustomer.agent_id, statusVal, selectedCustomer.current_status);
+    }
+    if (quickNotes.trim()) {
+      await addNote(selectedCustomer.cart_id, selectedCustomer.assignment_id, selectedCustomer.agent_id, quickNotes);
+    }
+    
+    setQuickNotes("");
+    setStatusVal("select");
+    await loadData();
+    // Select next cart logic (simple version)
+    const idx = filteredCustomers.findIndex(c => c.cart_id === selectedCustomer.cart_id);
+    if (idx >= 0 && idx < filteredCustomers.length - 1) {
+      setSelectedCartId(filteredCustomers[idx + 1].cart_id);
+    }
+    setIsLoading(false);
+  }
+
+  async function handleScheduleCallback() {
+    if (!selectedCustomer) return;
+    setIsLoading(true);
+    // Setting for tomorrow same time roughly
+    const tmr = new Date();
+    tmr.setDate(tmr.getDate() + 1);
+    await scheduleFollowUp(selectedCustomer.cart_id, selectedCustomer.assignment_id, selectedCustomer.agent_id, tmr.toISOString());
+    await loadData();
+    setIsLoading(false);
+  }
 
   // Filtering
   const filteredCustomers = customers.filter(c => {
@@ -90,7 +147,7 @@ export default function AssignedCartsPage() {
       return (c.cart_value || 0) >= 5000;
     }
     if (activeTab === 'pending') {
-      return c.follow_up === 'Pending' || c.recovery_status === 'Pending' || c.recovery_status === null;
+      return !c.follow_up && (c.current_status === 'Pending' || c.current_status === 'assigned' || c.current_status === null);
     }
     // recent
     return true; 
@@ -190,7 +247,20 @@ export default function AssignedCartsPage() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" className="relative text-slate-500 hover:text-slate-900">
+            {/* Agent Switcher */}
+            <Select value={activeAgentId} onValueChange={setActiveAgentId}>
+              <SelectTrigger className="h-9 border-slate-200 bg-slate-50 text-[13px] font-bold text-slate-700 w-[140px] shadow-sm">
+                <SelectValue placeholder="Select Agent" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Agents (Admin)</SelectItem>
+                {agents.map(a => (
+                  <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Button variant="ghost" size="icon" className="relative text-slate-500 hover:text-slate-900 ml-2">
               <Bell className="w-4 h-4" />
               <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
             </Button>
@@ -229,8 +299,8 @@ export default function AssignedCartsPage() {
             ) : (
               filteredCustomers.map((item, i) => {
                 const isActive = item.cart_id === selectedCustomer?.cart_id;
-                const status = item.follow_up || item.recovery_status || 'Pending';
-                const sColor = status === 'Recovered' ? 'bg-green-100 text-green-700 border-green-200' : 'bg-orange-100 text-orange-700 border-orange-200';
+                const status = item.current_status || 'assigned';
+                const sColor = status === 'converted' ? 'bg-green-100 text-green-700 border-green-200' : 'bg-orange-100 text-orange-700 border-orange-200';
                 
                 return (
                   <div 
@@ -377,58 +447,45 @@ export default function AssignedCartsPage() {
             </div>
             
             <div className="relative pl-6 space-y-6 before:absolute before:inset-0 before:ml-[11px] before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-[2px] before:bg-slate-200">
-              {/* Timeline Item 1 */}
-              <div className="relative flex items-start gap-5">
-                <div className="absolute left-[calc(-1.5rem-2px)] top-1 h-7 w-7 rounded-full border-2 border-[#F8FAFC] bg-green-100 flex items-center justify-center shadow-sm z-10">
-                  <PhoneCall className="h-3.5 w-3.5 text-green-700" />
-                </div>
-                <Card className="flex-1 shadow-sm border-slate-200 bg-white rounded-2xl">
-                  <div className="p-5 flex flex-col gap-3">
-                    <div className="flex justify-between items-start">
-                      <div className="flex items-center gap-3">
-                        <p className="font-extrabold text-[15px] text-slate-900">Outbound Call</p>
-                        <Badge className="bg-green-100 text-green-700 hover:bg-green-100 font-bold text-[11px] h-6 border-none px-2.5">Converted</Badge>
-                      </div>
-                      <div className="text-right flex flex-col gap-0.5">
-                        <p className="text-[12px] font-medium text-slate-500">Oct 12, 10:45 AM</p>
-                        <p className="text-[11px] text-slate-400 font-medium">(Previous Order)</p>
-                      </div>
-                    </div>
-                    <p className="text-[14px] text-slate-700 font-medium leading-relaxed max-w-2xl">
-                      Customer had questions about warranty. Offered a 15% discount code to close the sale. Customer completed purchase on the phone.
-                    </p>
-                    <div className="flex gap-3 mt-2">
-                      <Button variant="outline" size="sm" className="h-9 px-4 text-[12px] font-bold text-blue-700 border-blue-200 bg-blue-50/50 hover:bg-blue-50 hover:text-blue-800 gap-2 shadow-sm rounded-lg">
-                        <PlayCircle className="w-4 h-4" /> Play Recording (4:12)
-                      </Button>
-                      <Button variant="outline" size="sm" className="h-9 px-4 text-[12px] font-bold text-slate-600 gap-2 shadow-sm rounded-lg border-slate-200 hover:bg-slate-50">
-                        <Sparkles className="w-4 h-4" /> AI Summary
-                      </Button>
-                    </div>
-                  </div>
-                </Card>
-              </div>
+              {timeline.length === 0 ? (
+                <div className="text-sm text-slate-500 italic mt-4 pl-4">No activity history yet.</div>
+              ) : (
+                timeline.map((log, i) => {
+                  let Icon = MessageSquare;
+                  let bg = "bg-slate-200";
+                  let text = "text-slate-600";
+                  let title = log.activity_type.replace(/_/g, ' ');
 
-              {/* Timeline Item 2 */}
-              <div className="relative flex items-start gap-5">
-                <div className="absolute left-[calc(-1.5rem-2px)] top-1 h-7 w-7 rounded-full border-2 border-[#F8FAFC] bg-slate-200 flex items-center justify-center shadow-sm z-10">
-                  <MessageSquare className="h-3.5 w-3.5 text-slate-600" />
-                </div>
-                <Card className="flex-1 shadow-sm border-slate-200 bg-white/80 rounded-2xl">
-                  <div className="p-5">
-                    <div className="flex justify-between items-center mb-3">
-                      <div className="flex items-center gap-3">
-                        <p className="font-extrabold text-[15px] text-slate-900">Automated SMS</p>
-                        <Badge variant="secondary" className="bg-slate-100 text-slate-600 font-bold text-[11px] h-6 px-2.5">Delivered</Badge>
+                  if (log.activity_type === 'STATUS_CHANGED') {
+                    Icon = Sparkles; bg = "bg-blue-100"; text = "text-blue-700";
+                  } else if (log.activity_type === 'NOTE_ADDED') {
+                    Icon = MessageSquare; bg = "bg-purple-100"; text = "text-purple-700";
+                  } else if (log.activity_type === 'FOLLOW_UP_CREATED') {
+                    Icon = CalendarPlus; bg = "bg-orange-100"; text = "text-orange-700";
+                  } else if (log.activity_type === 'CALL_COMPLETED') {
+                    Icon = PhoneCall; bg = "bg-green-100"; text = "text-green-700";
+                  }
+
+                  return (
+                    <div key={i} className="relative flex items-start gap-5">
+                      <div className={`absolute left-[calc(-1.5rem-2px)] top-1 h-7 w-7 rounded-full border-2 border-[#F8FAFC] ${bg} flex items-center justify-center shadow-sm z-10`}>
+                        <Icon className={`h-3.5 w-3.5 ${text}`} />
                       </div>
-                      <p className="text-[12px] font-medium text-slate-500">Today, 1:00 PM</p>
+                      <Card className="flex-1 shadow-sm border-slate-200 bg-white/80 rounded-2xl">
+                        <div className="p-5">
+                          <div className="flex justify-between items-center mb-3">
+                            <p className="font-extrabold text-[15px] text-slate-900 capitalize">{title.toLowerCase()}</p>
+                            <p className="text-[12px] font-medium text-slate-500">{formatTimeAgo(log.created_at)}</p>
+                          </div>
+                          <p className="text-[14px] text-slate-600 font-medium">
+                            {log.description}
+                          </p>
+                        </div>
+                      </Card>
                     </div>
-                    <p className="text-[14px] text-slate-600 font-medium">
-                      "Hi {selectedCustomer.first_name || 'there'}, you left something behind! Use code RETURN10 for 10% off your cart."
-                    </p>
-                  </div>
-                </Card>
-              </div>
+                  );
+                })
+              )}
             </div>
           </div>
         ) : (
@@ -491,16 +548,18 @@ export default function AssignedCartsPage() {
                 
                 <div className="space-y-5">
                   <div className="space-y-2">
-                    <label className="text-[12px] font-bold text-slate-900">Call Outcome</label>
-                    <Select defaultValue="select">
+                    <label className="text-[12px] font-bold text-slate-900">Update Status</label>
+                    <Select value={statusVal} onValueChange={setStatusVal}>
                       <SelectTrigger className="w-full h-11 bg-white border-slate-200 text-[13px] font-bold text-slate-900 shadow-sm focus:ring-1 focus:ring-blue-500 rounded-lg">
-                        <SelectValue placeholder="Select Outcome..." />
+                        <SelectValue placeholder="Select Status..." />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="select" disabled>Select Outcome...</SelectItem>
-                        <SelectItem value="recovered">Recovered</SelectItem>
-                        <SelectItem value="followup">Follow Up</SelectItem>
-                        <SelectItem value="noanswer">No Answer</SelectItem>
+                        <SelectItem value="select" disabled>Select Status...</SelectItem>
+                        <SelectItem value="assigned">Assigned</SelectItem>
+                        <SelectItem value="contacted">Contacted</SelectItem>
+                        <SelectItem value="interested">Interested</SelectItem>
+                        <SelectItem value="converted">Converted</SelectItem>
+                        <SelectItem value="lost">Lost</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -523,14 +582,17 @@ export default function AssignedCartsPage() {
                   <div className="space-y-2">
                     <label className="text-[12px] font-bold text-slate-900">Quick Notes</label>
                     <Textarea 
+                      value={quickNotes}
+                      onChange={(e) => setQuickNotes(e.target.value)}
                       className="min-h-[120px] resize-none text-[13px] bg-white border-slate-200 shadow-sm placeholder:text-slate-400 font-medium rounded-xl p-4 focus-visible:ring-1 focus-visible:ring-blue-500"
-                      placeholder="Enter details about the call..."
+                      placeholder="Enter details about the call or customer interaction..."
                     />
                   </div>
                 </div>
               </div>
 
-              <Button className="w-full h-12 bg-blue-700 hover:bg-blue-800 text-white font-bold text-[14px] shadow-md rounded-xl">
+              <Button onClick={handleSaveNext} disabled={isLoading} className="w-full h-12 bg-blue-700 hover:bg-blue-800 text-white font-bold text-[14px] shadow-md rounded-xl flex items-center justify-center">
+                {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                 Save & Next Cart
               </Button>
             </div>
@@ -542,8 +604,11 @@ export default function AssignedCartsPage() {
                   <span className="flex items-center gap-2.5"><Send className="w-4 h-4 text-blue-600" /> Send 15% SMS</span>
                   <ChevronDown className="w-4 h-4 text-slate-400 -rotate-90" />
                 </Button>
-                <Button variant="outline" className="w-full justify-between h-12 bg-white border-slate-200 shadow-sm font-bold text-[13px] text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-xl">
-                  <span className="flex items-center gap-2.5"><CalendarPlus className="w-4 h-4 text-blue-600" /> Schedule Callback</span>
+                <Button onClick={handleScheduleCallback} disabled={isLoading} variant="outline" className="w-full justify-between h-12 bg-white border-slate-200 shadow-sm font-bold text-[13px] text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-xl">
+                  <span className="flex items-center gap-2.5">
+                    {isLoading ? <Loader2 className="w-4 h-4 animate-spin text-blue-600" /> : <CalendarPlus className="w-4 h-4 text-blue-600" />} 
+                    Schedule Callback (Tomorrow)
+                  </span>
                   <ChevronDown className="w-4 h-4 text-slate-400 -rotate-90" />
                 </Button>
               </div>

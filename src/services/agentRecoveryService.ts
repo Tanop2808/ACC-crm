@@ -27,6 +27,41 @@ export async function getAssignedCarts(agentId: string) {
   return { data, error: null };
 }
 
+export async function getFollowUps(agentId: string = TEMP_LOGGED_IN_AGENT_ID) {
+  let query = supabase
+    .from("agent_follow_up_dashboard_view")
+    .select("*")
+    .order("follow_up_at", { ascending: true });
+
+  if (agentId !== 'all') {
+    query = query.eq("agent_id", agentId);
+  }
+
+  const { data, error } = await query;
+    
+  if (error) {
+    console.error('Error fetching follow ups:', error);
+    return { data: null, error };
+  }
+  
+  return { data, error: null };
+}
+
+export async function getFollowUpDetails(cartId: string) {
+  const { data, error } = await supabase
+    .from('agent_follow_up_dashboard_view')
+    .select('*')
+    .eq('cart_id', cartId)
+    .single();
+
+  if (error) {
+    console.error('Error fetching follow up details:', error);
+    return { data: null, error };
+  }
+
+  return { data, error: null };
+}
+
 export async function getCartTimeline(cartId: string) {
   const { data, error } = await supabase
     .from('support_activity_logs')
@@ -43,10 +78,17 @@ export async function getCartTimeline(cartId: string) {
 }
 
 export async function updateRecoveryStatus(cartId: string, assignmentId: string, agentId: string, newStatus: string, oldStatus: string) {
+  let updates: any = { current_status: newStatus };
+  if (newStatus === 'follow_up') {
+    updates.follow_up = true;
+  } else if (newStatus === 'converted' || newStatus === 'lost') {
+    updates.follow_up = false;
+  }
+
   // Update state table first
   const { error: updateError } = await supabase
     .from('cart_recovery_status')
-    .update({ current_status: newStatus })
+    .update(updates)
     .eq('cart_id', cartId);
     
   if (updateError) {

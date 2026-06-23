@@ -146,6 +146,9 @@ export default function AssignedCartsPage() {
     if (activeTab === 'high_value') {
       return (c.cart_value || 0) >= 5000;
     }
+    if (activeTab === 'follow_ups') {
+      return c.follow_up || c.current_status === 'follow_up';
+    }
     if (activeTab === 'pending') {
       return !c.follow_up && (c.current_status === 'Pending' || c.current_status === 'assigned' || c.current_status === null);
     }
@@ -164,10 +167,11 @@ export default function AssignedCartsPage() {
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffMins = Math.floor(diffMs / 60000);
-    if (diffMins < 60) return `${diffMins} mins ago`;
+    if (diffMins < 60) return `${diffMins} min${diffMins === 1 ? '' : 's'} ago`;
     const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return `${diffHours} hours ago`;
-    return `${Math.floor(diffHours / 24)} days ago`;
+    if (diffHours < 24) return `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`;
   };
 
   const getProductsList = (productsJson: any) => {
@@ -286,10 +290,11 @@ export default function AssignedCartsPage() {
               <h2 className="font-extrabold text-[16px] text-slate-900 tracking-tight">Assigned Queue</h2>
               <Badge variant="secondary" className="bg-slate-100 text-slate-600 text-[11px] font-bold hover:bg-slate-100">{filteredCustomers.length} Carts</Badge>
             </div>
-            <div className="flex p-1 bg-slate-100/80 rounded-lg border border-slate-200/60">
-              <button className={`flex-1 py-1.5 text-[12px] font-bold rounded-md transition-all ${activeTab === 'high_value' ? 'bg-white shadow-sm text-blue-700 ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-700'}`} onClick={() => setActiveTab('high_value')}>High Value</button>
-              <button className={`flex-1 py-1.5 text-[12px] font-bold rounded-md transition-all ${activeTab === 'pending' ? 'bg-white shadow-sm text-blue-700 ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-700'}`} onClick={() => setActiveTab('pending')}>Pending</button>
-              <button className={`flex-1 py-1.5 text-[12px] font-bold rounded-md transition-all ${activeTab === 'recent' ? 'bg-white shadow-sm text-blue-700 ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-700'}`} onClick={() => setActiveTab('recent')}>Recent</button>
+            <div className="flex p-1 bg-slate-100/80 rounded-lg border border-slate-200/60 overflow-x-auto custom-scrollbar">
+              <button className={`shrink-0 px-3 py-1.5 text-[12px] font-bold rounded-md transition-all ${activeTab === 'high_value' ? 'bg-white shadow-sm text-blue-700 ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-700'}`} onClick={() => setActiveTab('high_value')}>High Value</button>
+              <button className={`shrink-0 px-3 py-1.5 text-[12px] font-bold rounded-md transition-all ${activeTab === 'pending' ? 'bg-white shadow-sm text-blue-700 ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-700'}`} onClick={() => setActiveTab('pending')}>Pending</button>
+              <button className={`shrink-0 px-3 py-1.5 text-[12px] font-bold rounded-md transition-all ${activeTab === 'follow_ups' ? 'bg-white shadow-sm text-blue-700 ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-700'}`} onClick={() => setActiveTab('follow_ups')}>Follow Ups</button>
+              <button className={`shrink-0 px-3 py-1.5 text-[12px] font-bold rounded-md transition-all ${activeTab === 'recent' ? 'bg-white shadow-sm text-blue-700 ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-700'}`} onClick={() => setActiveTab('recent')}>Recent</button>
             </div>
           </div>
           
@@ -366,30 +371,29 @@ export default function AssignedCartsPage() {
                   <h3 className="font-bold text-[16px] text-slate-900">Customer Profile</h3>
                 </div>
                 <CardContent className="px-6 pb-6 pt-0 flex-1 flex flex-col justify-between">
-                  <div className="grid grid-cols-2 gap-y-6 gap-x-4 mb-6">
+                  <div className="space-y-5 mb-6">
                     <div>
-                      <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Phone</p>
-                      <p className="text-[14px] font-bold text-slate-900">{selectedCustomer.phone || 'N/A'}</p>
+                      <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Customer Name</p>
+                      <p className="text-[15px] font-bold text-slate-900">{`${selectedCustomer.first_name || ''} ${selectedCustomer.last_name || ''}`.trim() || 'N/A'}</p>
                     </div>
                     <div>
-                      <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Email</p>
+                      <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Email Address</p>
                       <p className="text-[14px] font-bold text-slate-900 truncate" title={selectedCustomer.email || ''}>{selectedCustomer.email || 'N/A'}</p>
                     </div>
-                    <div>
-                      <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Source</p>
-                      <p className="text-[14px] font-bold text-slate-900 capitalize">{selectedCustomer.source || 'N/A'}</p>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Contact Number</p>
+                        <p className="text-[14px] font-bold text-slate-900">{selectedCustomer.phone || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Cart Source</p>
+                        <p className="text-[14px] font-bold text-slate-900 capitalize">{selectedCustomer.source || selectedCustomer.provider || 'N/A'}</p>
+                      </div>
                     </div>
                     <div>
-                      <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Provider</p>
-                      <p className="text-[14px] font-bold text-slate-900 capitalize">{selectedCustomer.provider || 'N/A'}</p>
+                      <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Shipping Address</p>
+                      <p className="text-[14px] font-bold text-slate-900 leading-relaxed">{selectedCustomer.address || selectedCustomer.shipping_address || selectedCustomer.billing_address || 'Address not provided by integration'}</p>
                     </div>
-                  </div>
-                  <div className="pt-5 border-t border-slate-100 flex items-end justify-between">
-                    <div>
-                      <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">LTV & Risk Profile</p>
-                      <p className="text-[16px] font-extrabold text-slate-900">₹0.00</p>
-                    </div>
-                    <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-none font-bold">Low Risk</Badge>
                   </div>
                 </CardContent>
               </Card>
@@ -420,9 +424,14 @@ export default function AssignedCartsPage() {
                                 <ShoppingBag className="w-5 h-5 text-slate-300" />
                               )}
                             </div>
-                            <div>
-                              <p className="text-[13px] font-bold text-slate-900 leading-tight">{name}</p>
-                              <p className="text-[12px] text-slate-500 mt-0.5 font-medium">Qty: {qty}</p>
+                            <div className="flex-1 min-w-0 pr-2">
+                              <p className="text-[13px] font-bold text-slate-900 leading-tight mb-1">{name}</p>
+                              <div className="flex items-center gap-3">
+                                <Badge variant="secondary" className="bg-slate-100 text-slate-600 font-bold text-[10px] px-1.5 py-0 rounded">Qty: {qty}</Badge>
+                                {(p.price || p.price === 0) && (
+                                  <span className="text-[12px] font-extrabold text-slate-700">{formatCurrency(p.price)}</span>
+                                )}
+                              </div>
                             </div>
                           </div>
                         );
@@ -558,6 +567,7 @@ export default function AssignedCartsPage() {
                         <SelectItem value="assigned">Assigned</SelectItem>
                         <SelectItem value="contacted">Contacted</SelectItem>
                         <SelectItem value="interested">Interested</SelectItem>
+                        <SelectItem value="follow_up">Follow Up</SelectItem>
                         <SelectItem value="converted">Converted</SelectItem>
                         <SelectItem value="lost">Lost</SelectItem>
                       </SelectContent>

@@ -40,13 +40,13 @@ export default function AssignedCartsPage() {
     if (fetchError) {
       setError(fetchError.message);
     } else if (data) {
-      setCustomers(data);
+      setCustomers(data as AssignedCart[]);
       if (!selectedCartId) {
-        const highValue = data.filter(c => (c.cart_value || 0) >= 5000);
+        const highValue = (data as AssignedCart[]).filter((c: any) => (c?.cart_value || 0) >= 5000);
         if (highValue.length > 0) {
           setSelectedCartId(highValue[0].cart_id);
         } else if (data.length > 0) {
-          setSelectedCartId(data[0].cart_id);
+          setSelectedCartId((data as any[])[0].cart_id);
         }
       }
     }

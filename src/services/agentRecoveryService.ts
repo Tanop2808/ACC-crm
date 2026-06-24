@@ -1,8 +1,47 @@
 import { supabase } from '../lib/supabase';
 
-// Use a temporary hardcoded agent UUID from the agents table for development.
-// This ensures production logic (agents seeing only their carts) is maintained.
 export const TEMP_LOGGED_IN_AGENT_ID = 'd54e4800-b005-4da2-bdf0-9af540c5f58c';
+
+export interface AssignedCart {
+  assignment_id: string;
+  agent_id: string;
+  agent_name: string;
+
+  customer_id: string;
+  first_name: string;
+  last_name: string | null;
+  email: string;
+  phone: string | null;
+
+  address_id: string | null;
+  address1: string | null;
+  address2: string | null;
+  city: string | null;
+  state: string | null;
+  country: string | null;
+  zip: string | null;
+
+  cart_id: string;
+  cart_value: number;
+  currency: string;
+  checkout_url: string;
+  cart_status: string;
+  abandoned_at: string;
+
+  products: Array<{
+    product_name: string;
+    quantity: number;
+    price: number | null;
+    image_url: string | null;
+  }>;
+
+  attempts: number | null;
+  call_status: string | null;
+  current_status: string | null;
+  follow_up: boolean | null;
+  notes: string | null;
+  last_call_date: string | null;
+}
 
 export async function getAgents() {
   const { data, error } = await supabase.from('agents').select('*');
@@ -11,7 +50,7 @@ export async function getAgents() {
 }
 
 export async function getAssignedCarts(agentId: string) {
-  let query = supabase.from('agent_recovery_dashboard_view').select('*');
+  let query = supabase.from('assigned_carts_view').select('*');
   
   if (agentId !== 'all') {
     query = query.eq('agent_id', agentId);
@@ -141,6 +180,45 @@ export async function addNote(cartId: string, assignmentId: string, agentId: str
     
   if (logError) {
     console.error('Error logging note:', logError);
+    return { error: logError };
+  }
+  
+  return { error: null };
+}
+
+export async function updateStatusAndNote(cartId: string, assignmentId: string, agentId: string, newStatus: string, oldStatus: string, noteText: string) {
+  let updates: any = { current_status: newStatus, notes: noteText };
+  if (newStatus === 'follow_up') {
+    updates.follow_up = true;
+  } else if (newStatus === 'converted' || newStatus === 'lost') {
+    updates.follow_up = false;
+  }
+
+  // Update state table first
+  const { error: updateError } = await supabase
+    .from('cart_recovery_status')
+    .update(updates)
+    .eq('cart_id', cartId);
+    
+  if (updateError) {
+    console.error('Error updating status and note:', updateError);
+    return { error: updateError };
+  }
+  
+  // Insert a single combined activity log
+  const { error: logError } = await supabase
+    .from('support_activity_logs')
+    .insert({
+      cart_id: cartId,
+      assignment_id: assignmentId,
+      agent_id: agentId,
+      activity_type: 'STATUS_AND_NOTE',
+      description: `Status changed to ${newStatus}. Note: ${noteText}`,
+      metadata: { old_status: oldStatus, new_status: newStatus, note: noteText }
+    });
+    
+  if (logError) {
+    console.error('Error logging combined status and note:', logError);
     return { error: logError };
   }
   

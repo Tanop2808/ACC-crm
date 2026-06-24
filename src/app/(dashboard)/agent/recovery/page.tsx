@@ -11,11 +11,11 @@ import {
   Search, Bell, History, Mail, MessageSquare, PhoneOff, User, 
   ShoppingBag, Mic, MicOff, Send, CalendarPlus, CheckCircle2, Clock, AlertTriangle, PlayCircle, Sparkles, ChevronDown, PhoneCall, Loader2
 } from "lucide-react";
-import { getAssignedCarts, getCartTimeline, updateRecoveryStatus, addNote, scheduleFollowUp, getAgents, TEMP_LOGGED_IN_AGENT_ID } from "@/services/agentRecoveryService";
+import { getAssignedCarts, getCartTimeline, updateRecoveryStatus, addNote, updateStatusAndNote, scheduleFollowUp, getAgents, TEMP_LOGGED_IN_AGENT_ID, AssignedCart } from "@/services/agentRecoveryService";
 import { supabase } from "@/lib/supabase";
 
 export default function AssignedCartsPage() {
-  const [activeTab, setActiveTab] = useState("recent");
+  const [activeTab, setActiveTab] = useState("all");
   const [isMuted, setIsMuted] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isCalling, setIsCalling] = useState(false);
@@ -23,7 +23,7 @@ export default function AssignedCartsPage() {
   const [agents, setAgents] = useState<any[]>([]);
   const [activeAgentId, setActiveAgentId] = useState(TEMP_LOGGED_IN_AGENT_ID);
   
-  const [customers, setCustomers] = useState<any[]>([]);
+  const [customers, setCustomers] = useState<AssignedCart[]>([]);
   const [timeline, setTimeline] = useState<any[]>([]);
   const [quickNotes, setQuickNotes] = useState("");
   const [statusVal, setStatusVal] = useState("select");
@@ -73,9 +73,21 @@ export default function AssignedCartsPage() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'cart_recovery_status' }, () => loadData())
       .subscribe();
 
+    const channelActivity = supabase
+      .channel('realtime-activity')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'support_activity' }, () => loadData())
+      .subscribe();
+
+    const channelActivityLogs = supabase
+      .channel('realtime-activity-logs-dashboard')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'support_activity_logs' }, () => loadData())
+      .subscribe();
+
     return () => {
       supabase.removeChannel(channel1);
       supabase.removeChannel(channel2);
+      supabase.removeChannel(channelActivity);
+      supabase.removeChannel(channelActivityLogs);
     };
   }, []);
 
@@ -102,10 +114,14 @@ export default function AssignedCartsPage() {
     if (!selectedCustomer) return;
     
     setIsLoading(true);
-    if (statusVal !== 'select') {
+    const hasStatus = statusVal !== 'select';
+    const hasNote = quickNotes.trim().length > 0;
+
+    if (hasStatus && hasNote) {
+      await updateStatusAndNote(selectedCustomer.cart_id, selectedCustomer.assignment_id, selectedCustomer.agent_id, statusVal, selectedCustomer.current_status, quickNotes);
+    } else if (hasStatus) {
       await updateRecoveryStatus(selectedCustomer.cart_id, selectedCustomer.assignment_id, selectedCustomer.agent_id, statusVal, selectedCustomer.current_status);
-    }
-    if (quickNotes.trim()) {
+    } else if (hasNote) {
       await addNote(selectedCustomer.cart_id, selectedCustomer.assignment_id, selectedCustomer.agent_id, quickNotes);
     }
     
@@ -193,6 +209,28 @@ export default function AssignedCartsPage() {
 
   const activeProducts = getProductsList(selectedCustomer?.products);
 
+  const callRemarksLogs = [...timeline]
+    .reverse()
+    .filter(log => log.activity_type === 'NOTE_ADDED' || log.activity_type === 'STATUS_AND_NOTE');
+
+  const getRemarkText = (log: any) => {
+    if (log.activity_type === 'NOTE_ADDED') return log.description;
+    if (log.activity_type === 'STATUS_AND_NOTE') {
+      if (log.metadata?.note) return log.metadata.note;
+      if (log.description && log.description.includes('. Note: ')) {
+        return log.description.split('. Note: ')[1];
+      }
+      return log.description;
+    }
+    return null;
+  };
+
+  const remarksList = [
+    callRemarksLogs[0] ? getRemarkText(callRemarksLogs[0]) : null,
+    callRemarksLogs[1] ? getRemarkText(callRemarksLogs[1]) : null,
+    callRemarksLogs[2] ? getRemarkText(callRemarksLogs[2]) : null,
+  ];
+
   if (isLoading) {
     return (
       <div className="flex h-screen items-center justify-center bg-[#F8FAFC]">
@@ -220,7 +258,7 @@ export default function AssignedCartsPage() {
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-[#F8FAFC] -m-4 md:-m-6">
       {/* Top Header */}
-      <header className="h-16 shrink-0 bg-white border-b border-border flex items-center justify-between px-6">
+      <header className="h-16 shrink-0 bg-white border-b border-border flex items-center justify-between px-6 pl-14">
         <div className="flex items-center gap-6 flex-1">
           <div className="font-bold text-blue-700 text-lg tracking-tight">RecoveryControl</div>
           <div className="relative w-80">
@@ -234,22 +272,7 @@ export default function AssignedCartsPage() {
           </div>
         </div>
         <div className="flex items-center gap-8">
-          <div className="flex items-center gap-6 text-[12px] font-bold">
-            <div className="flex flex-col">
-              <span className="text-muted-foreground tracking-wider uppercase text-[10px]">KPI:</span>
-              <span className="text-green-600 text-[14px]">84% Recovered</span>
-            </div>
-            <div className="w-[1px] h-8 bg-border"></div>
-            <div className="flex flex-col">
-              <span className="text-muted-foreground tracking-wider uppercase text-[10px]">Avg Call:</span>
-              <span className="text-orange-500 text-[14px]">4:12</span>
-            </div>
-            <div className="w-[1px] h-8 bg-border"></div>
-            <div className="flex flex-col">
-              <span className="text-muted-foreground tracking-wider uppercase text-[10px]">Daily Goal:</span>
-              <span className="text-slate-900 text-[14px]">12/20</span>
-            </div>
-          </div>
+
           <div className="flex items-center gap-3">
             {/* Agent Switcher */}
             <Select value={activeAgentId} onValueChange={setActiveAgentId}>
@@ -264,15 +287,6 @@ export default function AssignedCartsPage() {
               </SelectContent>
             </Select>
 
-            <Button variant="ghost" size="icon" className="relative text-slate-500 hover:text-slate-900 ml-2">
-              <Bell className="w-4 h-4" />
-              <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
-            </Button>
-            <Button variant="ghost" size="icon" className="text-slate-500 hover:text-slate-900">
-              <History className="w-4 h-4" />
-            </Button>
-            <Button variant="outline" className="h-9 font-bold text-[13px] shadow-sm bg-white hover:bg-slate-50 text-slate-700 border-slate-200">Take Break</Button>
-            <Button className="h-9 font-bold text-[13px] bg-blue-700 hover:bg-blue-800 text-white shadow-sm border-none">Go Ready</Button>
             <div className="w-8 h-8 rounded-full bg-slate-800 ml-2 overflow-hidden border-2 border-white shadow-sm flex items-center justify-center shrink-0">
               <User className="w-4 h-4 text-white" />
             </div>
@@ -290,11 +304,11 @@ export default function AssignedCartsPage() {
               <h2 className="font-extrabold text-[16px] text-slate-900 tracking-tight">Assigned Queue</h2>
               <Badge variant="secondary" className="bg-slate-100 text-slate-600 text-[11px] font-bold hover:bg-slate-100">{filteredCustomers.length} Carts</Badge>
             </div>
-            <div className="flex p-1 bg-slate-100/80 rounded-lg border border-slate-200/60 overflow-x-auto custom-scrollbar">
+            <div className="flex p-1 bg-slate-100/80 rounded-lg border border-slate-200/60 overflow-x-auto custom-scrollbar mt-1">
               <button className={`shrink-0 px-3 py-1.5 text-[12px] font-bold rounded-md transition-all ${activeTab === 'high_value' ? 'bg-white shadow-sm text-blue-700 ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-700'}`} onClick={() => setActiveTab('high_value')}>High Value</button>
               <button className={`shrink-0 px-3 py-1.5 text-[12px] font-bold rounded-md transition-all ${activeTab === 'pending' ? 'bg-white shadow-sm text-blue-700 ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-700'}`} onClick={() => setActiveTab('pending')}>Pending</button>
               <button className={`shrink-0 px-3 py-1.5 text-[12px] font-bold rounded-md transition-all ${activeTab === 'follow_ups' ? 'bg-white shadow-sm text-blue-700 ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-700'}`} onClick={() => setActiveTab('follow_ups')}>Follow Ups</button>
-              <button className={`shrink-0 px-3 py-1.5 text-[12px] font-bold rounded-md transition-all ${activeTab === 'recent' ? 'bg-white shadow-sm text-blue-700 ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-700'}`} onClick={() => setActiveTab('recent')}>Recent</button>
+              <button className={`shrink-0 px-3 py-1.5 text-[12px] font-bold rounded-md transition-all ${activeTab === 'all' || activeTab === 'recent' ? 'bg-white shadow-sm text-blue-700 ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-700'}`} onClick={() => setActiveTab('all')}>All</button>
             </div>
           </div>
           
@@ -343,158 +357,137 @@ export default function AssignedCartsPage() {
         {/* Middle Column: Active Session */}
         {selectedCustomer ? (
           <div className="flex-1 overflow-y-auto bg-[#F8FAFC] custom-scrollbar p-8">
-            <p className="text-[11px] font-bold uppercase tracking-widest text-blue-700 mb-2">Active Session</p>
-            <div className="flex items-start justify-between mb-8">
-              <h1 className="text-[40px] font-extrabold tracking-tight text-slate-900 w-1/2 leading-none">
-                {`${selectedCustomer.first_name || ''} ${selectedCustomer.last_name || ''}`.trim() || 'Unknown'}
-              </h1>
-              <div className="flex gap-2">
-                <Button variant="outline" size="icon" className="h-10 w-10 border-slate-200 bg-white shadow-sm hover:bg-slate-50 text-slate-600"><Mail className="w-4 h-4" /></Button>
-                <Button variant="outline" size="icon" className="h-10 w-10 border-slate-200 bg-white shadow-sm hover:bg-slate-50 text-slate-600"><MessageSquare className="w-4 h-4" /></Button>
-                {isCalling && (
-                  <Button 
-                    onClick={() => setIsCalling(false)}
-                    variant="outline" 
-                    className="h-10 text-red-600 border-red-200 bg-red-50 hover:bg-red-100 hover:text-red-700 font-bold gap-2 shadow-sm"
-                  >
-                    <PhoneOff className="w-4 h-4" /> End Call
-                  </Button>
-                )}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-6 mb-8">
-              {/* Customer Profile Card */}
+            <div className="mb-8">
               <Card className="border-slate-200 shadow-sm bg-white overflow-hidden rounded-2xl flex flex-col">
-                <div className="px-6 py-5 flex items-center gap-3">
+                <div className="px-6 py-5 flex items-center gap-3 border-b border-slate-100 bg-slate-50/50">
                   <User className="w-5 h-5 text-blue-700" />
-                  <h3 className="font-bold text-[16px] text-slate-900">Customer Profile</h3>
+                  <h3 className="font-bold text-[16px] text-slate-900">{`${selectedCustomer.first_name || ''} ${selectedCustomer.last_name || ''}`.trim() || 'Unknown'}</h3>
                 </div>
-                <CardContent className="px-6 pb-6 pt-0 flex-1 flex flex-col justify-between">
-                  <div className="space-y-5 mb-6">
-                    <div>
-                      <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Customer Name</p>
-                      <p className="text-[15px] font-bold text-slate-900">{`${selectedCustomer.first_name || ''} ${selectedCustomer.last_name || ''}`.trim() || 'N/A'}</p>
-                    </div>
-                    <div>
+                <CardContent className="px-6 py-6 flex flex-col space-y-6 pt-6">
+                  {/* Row 1: Email & Contact Info */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="min-w-0">
                       <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Email Address</p>
                       <p className="text-[14px] font-bold text-slate-900 truncate" title={selectedCustomer.email || ''}>{selectedCustomer.email || 'N/A'}</p>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Contact Number</p>
-                        <p className="text-[14px] font-bold text-slate-900">{selectedCustomer.phone || 'N/A'}</p>
-                      </div>
-                      <div>
-                        <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Cart Source</p>
-                        <p className="text-[14px] font-bold text-slate-900 capitalize">{selectedCustomer.source || selectedCustomer.provider || 'N/A'}</p>
-                      </div>
-                    </div>
-                    <div>
-                      <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Shipping Address</p>
-                      <p className="text-[14px] font-bold text-slate-900 leading-relaxed">{selectedCustomer.address || selectedCustomer.shipping_address || selectedCustomer.billing_address || 'Address not provided by integration'}</p>
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Contact Info</p>
+                      <p className="text-[14px] font-bold text-slate-900">{selectedCustomer.phone || 'N/A'}</p>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
 
-              {/* Abandoned Cart Card */}
-              <Card className="border-slate-200 shadow-sm bg-white overflow-hidden rounded-2xl flex flex-col">
-                <div className="px-6 py-5 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <ShoppingBag className="w-5 h-5 text-blue-700" />
-                    <h3 className="font-bold text-[16px] text-slate-900">Abandoned Cart</h3>
-                  </div>
-                  <span className="font-extrabold text-[16px] text-slate-900">{formatCurrency(selectedCustomer.cart_value)}</span>
-                </div>
-                <CardContent className="px-6 pb-0 pt-0 flex-1 flex flex-col">
-                  <div className="flex-1 space-y-3 bg-slate-50/50 rounded-xl p-3 border border-slate-100 h-[180px] overflow-y-auto custom-scrollbar">
-                    {activeProducts.length > 0 ? (
-                      activeProducts.map((p: any, i: number) => {
-                        const img = p.image_url || p.imageUrl || p.image || p.img || p.thumbnail || p.src || p.picture;
-                        const name = p.name || p.product_name || p.title || p.item_name || 'Unknown Product';
-                        const qty = p.qty || p.quantity || 1;
-                        
-                        return (
-                          <div key={i} className="flex items-center gap-4">
-                            <div className="w-12 h-12 bg-white rounded-md flex items-center justify-center border border-slate-200 overflow-hidden shrink-0 shadow-sm">
-                              {img ? (
-                                <img src={img} alt={name} className="w-full h-full object-cover" />
-                              ) : (
-                                <ShoppingBag className="w-5 h-5 text-slate-300" />
-                              )}
-                            </div>
-                            <div className="flex-1 min-w-0 pr-2">
-                              <p className="text-[13px] font-bold text-slate-900 leading-tight mb-1">{name}</p>
-                              <div className="flex items-center gap-3">
-                                <Badge variant="secondary" className="bg-slate-100 text-slate-600 font-bold text-[10px] px-1.5 py-0 rounded">Qty: {qty}</Badge>
-                                {(p.price || p.price === 0) && (
-                                  <span className="text-[12px] font-extrabold text-slate-700">{formatCurrency(p.price)}</span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })
-                    ) : (
-                      <div className="flex items-center justify-center h-full text-[13px] text-slate-500 font-medium">
-                        No product details found
+                  {/* Address Section */}
+                  <div className="min-w-0 bg-slate-50 border border-slate-100 rounded-xl p-4">
+                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Address</p>
+                    {selectedCustomer.address1 || selectedCustomer.city ? (
+                      <div className="text-[13px] font-medium text-slate-900 leading-relaxed">
+                        {selectedCustomer.address1 && <p>{selectedCustomer.address1}</p>}
+                        {selectedCustomer.address2 && <p>{selectedCustomer.address2}</p>}
+                        <p>{[selectedCustomer.city, selectedCustomer.state].filter(Boolean).join(', ')}</p>
+                        <p>{[selectedCustomer.country, selectedCustomer.zip].filter(Boolean).join(' - ')}</p>
                       </div>
+                    ) : (
+                      <p className="text-[13px] font-medium text-slate-500">Address not available</p>
                     )}
                   </div>
-                  <div className="py-4 text-center">
-                    <p className="text-[12px] font-medium text-slate-500">Abandoned: {formatTimeAgo(selectedCustomer.abandoned_at)}</p>
+
+                  {/* Order Details */}
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Cart Details</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Badge variant="outline" className="text-[10px] font-bold border-slate-200 text-slate-600">{selectedCustomer.cart_status || 'ABANDONED'}</Badge>
+                          <span className="text-[11px] font-medium text-slate-400">Abandoned: {formatTimeAgo(selectedCustomer.abandoned_at)}</span>
+                        </div>
+                      </div>
+                      <div className="text-right flex flex-col items-end gap-2">
+                        <span className="font-extrabold text-[16px] text-slate-900">{formatCurrency(selectedCustomer.cart_value)}</span>
+                      </div>
+                    </div>
+
+                    {selectedCustomer.checkout_url && (
+                      <div className="mb-4">
+                        <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Checkout URL</p>
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 bg-[#F8F9FA] border border-slate-100 rounded-lg px-3 py-2.5 overflow-hidden">
+                            <p className="text-[13px] font-medium text-slate-600 truncate">{selectedCustomer.checkout_url}</p>
+                          </div>
+                          <Button 
+                            onClick={() => navigator.clipboard.writeText(selectedCustomer.checkout_url)} 
+                            className="bg-blue-700 hover:bg-blue-800 text-white text-[12px] h-10 px-4 rounded-lg font-bold shrink-0"
+                          >
+                            COPY URL
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                    <div className="space-y-3">
+                      {activeProducts.length > 0 ? (
+                        activeProducts.map((p: any, i: number) => {
+                          const img = p.image_url || p.imageUrl || p.image || p.img || p.thumbnail || p.src || p.picture;
+                          const name = p.name || p.product_name || p.title || p.item_name || 'Unknown Product';
+                          const qty = p.qty || p.quantity || 1;
+                          
+                          return (
+                            <div key={i} className="flex items-center gap-4 bg-slate-50 border border-slate-100 rounded-xl p-3">
+                              <div className="w-12 h-12 bg-white rounded-md flex items-center justify-center border border-slate-200 overflow-hidden shrink-0 shadow-sm">
+                                {img ? (
+                                  <img src={img} alt={name} className="w-full h-full object-cover" />
+                                ) : (
+                                  <ShoppingBag className="w-5 h-5 text-slate-300" />
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0 pr-2">
+                                <p className="text-[13px] font-bold text-slate-900 leading-tight mb-1">{name}</p>
+                                <div className="flex items-center gap-3">
+                                  <Badge variant="secondary" className="bg-white text-slate-600 font-bold text-[10px] px-1.5 py-0 rounded border border-slate-200">Qty: {qty}</Badge>
+                                  {(p.price || p.price === 0) && (
+                                    <span className="text-[12px] font-extrabold text-slate-700">{formatCurrency(p.price)}</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <div className="flex items-center justify-center p-4 bg-slate-50 border border-slate-100 rounded-xl text-[13px] text-slate-500 font-medium">
+                          No product details found
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </CardContent>
               </Card>
             </div>
 
-            {/* Interaction History */}
-            <div className="mb-6 flex items-center gap-2">
-              <History className="w-4 h-4 text-blue-700" />
-              <h3 className="font-extrabold text-[18px] text-slate-900">Interaction History</h3>
-            </div>
-            
-            <div className="relative pl-6 space-y-6 before:absolute before:inset-0 before:ml-[11px] before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-[2px] before:bg-slate-200">
-              {timeline.length === 0 ? (
-                <div className="text-sm text-slate-500 italic mt-4 pl-4">No activity history yet.</div>
-              ) : (
-                timeline.map((log, i) => {
-                  let Icon = MessageSquare;
-                  let bg = "bg-slate-200";
-                  let text = "text-slate-600";
-                  let title = log.activity_type.replace(/_/g, ' ');
-
-                  if (log.activity_type === 'STATUS_CHANGED') {
-                    Icon = Sparkles; bg = "bg-blue-100"; text = "text-blue-700";
-                  } else if (log.activity_type === 'NOTE_ADDED') {
-                    Icon = MessageSquare; bg = "bg-purple-100"; text = "text-purple-700";
-                  } else if (log.activity_type === 'FOLLOW_UP_CREATED') {
-                    Icon = CalendarPlus; bg = "bg-orange-100"; text = "text-orange-700";
-                  } else if (log.activity_type === 'CALL_COMPLETED') {
-                    Icon = PhoneCall; bg = "bg-green-100"; text = "text-green-700";
-                  }
-
+            {/* Call Remarks */}
+            <div className="mb-6">
+              <div className="flex items-center gap-4 mb-4">
+                <p className="text-[11px] font-bold uppercase tracking-widest text-slate-500 shrink-0">Call Remarks</p>
+                <div className="h-px bg-slate-200 flex-1"></div>
+              </div>
+              <div className="space-y-3">
+                {[1, 2, 3].map((num, i) => {
+                  const remark = remarksList[i];
+                  const ordinal = num === 1 ? '1ST' : num === 2 ? '2ND' : '3RD';
                   return (
-                    <div key={i} className="relative flex items-start gap-5">
-                      <div className={`absolute left-[calc(-1.5rem-2px)] top-1 h-7 w-7 rounded-full border-2 border-[#F8FAFC] ${bg} flex items-center justify-center shadow-sm z-10`}>
-                        <Icon className={`h-3.5 w-3.5 ${text}`} />
+                    <div key={num} className="bg-[#F8F9FA] border border-slate-100 rounded-xl p-4 flex gap-4">
+                      <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center shrink-0 mt-0.5">
+                        <span className="text-[11px] font-bold text-slate-600">{num}</span>
                       </div>
-                      <Card className="flex-1 shadow-sm border-slate-200 bg-white/80 rounded-2xl">
-                        <div className="p-5">
-                          <div className="flex justify-between items-center mb-3">
-                            <p className="font-extrabold text-[15px] text-slate-900 capitalize">{title.toLowerCase()}</p>
-                            <p className="text-[12px] font-medium text-slate-500">{formatTimeAgo(log.created_at)}</p>
-                          </div>
-                          <p className="text-[14px] text-slate-600 font-medium">
-                            {log.description}
-                          </p>
-                        </div>
-                      </Card>
+                      <div>
+                        <p className="text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-1.5">{ordinal} Call Remarks</p>
+                        {remark ? (
+                          <p className="text-[14px] text-slate-700 font-medium">{remark}</p>
+                        ) : (
+                          <p className="text-[14px] text-slate-400 italic font-medium">No remarks recorded.</p>
+                        )}
+                      </div>
                     </div>
                   );
-                })
-              )}
+                })}
+              </div>
             </div>
           </div>
         ) : (
@@ -556,28 +549,53 @@ export default function AssignedCartsPage() {
                 <p className="text-[11px] font-bold uppercase tracking-widest text-blue-700 mb-4">Log Outcome</p>
                 
                 <div className="space-y-5">
-                  <div className="space-y-2">
-                    <label className="text-[12px] font-bold text-slate-900">Update Status</label>
+                  <div key="date-attempt-row" className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Date</label>
+                      <Input 
+                        type="date" 
+                        defaultValue={new Date().toISOString().split('T')[0]}
+                        className="w-full h-11 bg-[#F8F9FA] border-slate-200 text-[13px] font-medium text-slate-900 shadow-sm focus-visible:ring-1 focus-visible:ring-blue-500 rounded-lg"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Attempt</label>
+                      <Select defaultValue="1st">
+                        <SelectTrigger className="w-full !h-11 bg-[#F8F9FA] border-slate-200 text-[13px] font-medium text-slate-900 shadow-sm focus:ring-1 focus:ring-blue-500 rounded-lg">
+                          <SelectValue placeholder="Select Attempt..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="1st">1st</SelectItem>
+                          <SelectItem value="2nd">2nd</SelectItem>
+                          <SelectItem value="3rd">3rd</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div key="call-status-row" className="space-y-2">
+                    <label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Call Status</label>
                     <Select value={statusVal} onValueChange={setStatusVal}>
-                      <SelectTrigger className="w-full h-11 bg-white border-slate-200 text-[13px] font-bold text-slate-900 shadow-sm focus:ring-1 focus:ring-blue-500 rounded-lg">
+                      <SelectTrigger className="w-full !h-11 bg-white border-slate-200 text-[13px] font-bold text-slate-900 shadow-sm focus:ring-1 focus:ring-blue-500 rounded-lg">
                         <SelectValue placeholder="Select Status..." />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="select" disabled>Select Status...</SelectItem>
-                        <SelectItem value="assigned">Assigned</SelectItem>
-                        <SelectItem value="contacted">Contacted</SelectItem>
-                        <SelectItem value="interested">Interested</SelectItem>
-                        <SelectItem value="follow_up">Follow Up</SelectItem>
-                        <SelectItem value="converted">Converted</SelectItem>
-                        <SelectItem value="lost">Lost</SelectItem>
+                        <SelectItem value="connected">Connected</SelectItem>
+                        <SelectItem value="no_answer">No Answer</SelectItem>
+                        <SelectItem value="busy">Busy</SelectItem>
+                        <SelectItem value="disconnected">Disconnected</SelectItem>
+                        <SelectItem value="wrong_number">Wrong Number</SelectItem>
+                        <SelectItem value="follow_up">Follow-up</SelectItem>
+                        <SelectItem value="dnd">DND</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
 
-                  <div className="space-y-2">
-                    <label className="text-[12px] font-bold text-slate-900">Abandonment Reason</label>
+                  <div key="abandon-reason-row" className="space-y-2">
+                    <label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Abandonment Reason</label>
                     <Select defaultValue="select">
-                      <SelectTrigger className="w-full h-11 bg-white border-slate-200 text-[13px] font-bold text-slate-900 shadow-sm focus:ring-1 focus:ring-blue-500 rounded-lg">
+                      <SelectTrigger className="w-full !h-11 bg-white border-slate-200 text-[13px] font-bold text-slate-900 shadow-sm focus:ring-1 focus:ring-blue-500 rounded-lg">
                         <SelectValue placeholder="Select Reason..." />
                       </SelectTrigger>
                       <SelectContent>
@@ -589,8 +607,8 @@ export default function AssignedCartsPage() {
                     </Select>
                   </div>
 
-                  <div className="space-y-2">
-                    <label className="text-[12px] font-bold text-slate-900">Quick Notes</label>
+                  <div key="quick-notes-row" className="space-y-2">
+                    <label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Quick Notes</label>
                     <Textarea 
                       value={quickNotes}
                       onChange={(e) => setQuickNotes(e.target.value)}

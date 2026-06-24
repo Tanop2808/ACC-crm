@@ -275,7 +275,7 @@ export default function AssignedCartsPage() {
 
           <div className="flex items-center gap-3">
             {/* Agent Switcher */}
-            <Select value={activeAgentId} onValueChange={setActiveAgentId}>
+            <Select value={activeAgentId} onValueChange={(v) => setActiveAgentId(v as string)}>
               <SelectTrigger className="h-9 border-slate-200 bg-slate-50 text-[13px] font-bold text-slate-700 w-[140px] shadow-sm">
                 <SelectValue placeholder="Select Agent" />
               </SelectTrigger>
@@ -575,7 +575,7 @@ export default function AssignedCartsPage() {
 
                   <div key="call-status-row" className="space-y-2">
                     <label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Call Status</label>
-                    <Select value={statusVal} onValueChange={setStatusVal}>
+                    <Select value={statusVal} onValueChange={(v) => setStatusVal(v as string)}>
                       <SelectTrigger className="w-full !h-11 bg-white border-slate-200 text-[13px] font-bold text-slate-900 shadow-sm focus:ring-1 focus:ring-blue-500 rounded-lg">
                         <SelectValue placeholder="Select Status..." />
                       </SelectTrigger>

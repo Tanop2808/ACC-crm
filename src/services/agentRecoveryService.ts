@@ -49,7 +49,7 @@ export async function getAgents() {
   return { data, error };
 }
 
-export async function getAssignedCarts(agentId: string) {
+export async function getAssignedCarts(agentId: string): Promise<{ data: AssignedCart[] | null, error: any }> {
   let query = supabase.from('assigned_carts_view').select('*');
   
   if (agentId !== 'all') {
@@ -63,7 +63,7 @@ export async function getAssignedCarts(agentId: string) {
     return { data: null, error };
   }
   
-  return { data, error: null };
+  return { data: data as AssignedCart[] | null, error: null };
 }
 
 export async function getFollowUps(agentId: string = TEMP_LOGGED_IN_AGENT_ID) {
@@ -116,8 +116,8 @@ export async function getCartTimeline(cartId: string) {
   return { data, error: null };
 }
 
-export async function updateRecoveryStatus(cartId: string, assignmentId: string, agentId: string, newStatus: string, oldStatus: string) {
-  let updates: any = { current_status: newStatus };
+export async function updateRecoveryStatus(cartId: string, assignmentId: string, agentId: string, newStatus: string, oldStatus: string | null) {
+  let updates: Record<string, any> = { current_status: newStatus };
   if (newStatus === 'follow_up') {
     updates.follow_up = true;
   } else if (newStatus === 'converted' || newStatus === 'lost') {
@@ -127,7 +127,7 @@ export async function updateRecoveryStatus(cartId: string, assignmentId: string,
   // Update state table first
   const { error: updateError } = await supabase
     .from('cart_recovery_status')
-    .update(updates)
+    .update(updates as never)
     .eq('cart_id', cartId);
     
   if (updateError) {
@@ -145,7 +145,7 @@ export async function updateRecoveryStatus(cartId: string, assignmentId: string,
       activity_type: 'STATUS_CHANGED',
       description: `Status changed to ${newStatus}`,
       metadata: { old_status: oldStatus, new_status: newStatus }
-    });
+    } as never);
     
   if (logError) {
     console.error('Error logging status change:', logError);
@@ -159,7 +159,7 @@ export async function addNote(cartId: string, assignmentId: string, agentId: str
   // Update state table first
   const { error: updateError } = await supabase
     .from('cart_recovery_status')
-    .update({ notes: noteText })
+    .update({ notes: noteText } as never)
     .eq('cart_id', cartId);
     
   if (updateError) {
@@ -176,7 +176,7 @@ export async function addNote(cartId: string, assignmentId: string, agentId: str
       agent_id: agentId,
       activity_type: 'NOTE_ADDED',
       description: noteText
-    });
+    } as never);
     
   if (logError) {
     console.error('Error logging note:', logError);
@@ -186,8 +186,8 @@ export async function addNote(cartId: string, assignmentId: string, agentId: str
   return { error: null };
 }
 
-export async function updateStatusAndNote(cartId: string, assignmentId: string, agentId: string, newStatus: string, oldStatus: string, noteText: string) {
-  let updates: any = { current_status: newStatus, notes: noteText };
+export async function updateStatusAndNote(cartId: string, assignmentId: string, agentId: string, newStatus: string, oldStatus: string | null, noteText: string) {
+  let updates: Record<string, any> = { current_status: newStatus, notes: noteText };
   if (newStatus === 'follow_up') {
     updates.follow_up = true;
   } else if (newStatus === 'converted' || newStatus === 'lost') {
@@ -197,7 +197,7 @@ export async function updateStatusAndNote(cartId: string, assignmentId: string, 
   // Update state table first
   const { error: updateError } = await supabase
     .from('cart_recovery_status')
-    .update(updates)
+    .update(updates as never)
     .eq('cart_id', cartId);
     
   if (updateError) {
@@ -215,7 +215,7 @@ export async function updateStatusAndNote(cartId: string, assignmentId: string, 
       activity_type: 'STATUS_AND_NOTE',
       description: `Status changed to ${newStatus}. Note: ${noteText}`,
       metadata: { old_status: oldStatus, new_status: newStatus, note: noteText }
-    });
+    } as never);
     
   if (logError) {
     console.error('Error logging combined status and note:', logError);
@@ -232,7 +232,7 @@ export async function scheduleFollowUp(cartId: string, assignmentId: string, age
     .update({ 
       follow_up: true,
       follow_up_at: followUpTime 
-    })
+    } as never)
     .eq('cart_id', cartId);
     
   if (updateError) {
@@ -249,7 +249,7 @@ export async function scheduleFollowUp(cartId: string, assignmentId: string, age
       agent_id: agentId,
       activity_type: 'FOLLOW_UP_CREATED',
       description: 'Follow up scheduled'
-    });
+    } as never);
     
   if (logError) {
     console.error('Error logging follow-up:', logError);

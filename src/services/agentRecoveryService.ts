@@ -3,44 +3,39 @@ import { supabase } from '../lib/supabase';
 export const TEMP_LOGGED_IN_AGENT_ID = 'd54e4800-b005-4da2-bdf0-9af540c5f58c';
 
 export interface AssignedCart {
-  assignment_id: string;
-  agent_id: string;
-  agent_name: string;
-
-  customer_id: string;
-  first_name: string;
-  last_name: string | null;
-  email: string;
-  phone: string | null;
-
-  address_id: string | null;
+  id: string;
+  brand_id: string | null;
+  provider_id: string | null;
+  integration_id: string | null;
+  source: string | null;
+  event_type: string | null;
+  customer_name: string | null;
+  customer_email: string | null;
+  customer_phone: string | null;
   address1: string | null;
   address2: string | null;
   city: string | null;
   state: string | null;
   country: string | null;
   zip: string | null;
-
-  cart_id: string;
+  checkout_url?: string | null;
   cart_value: number;
   currency: string;
-  checkout_url: string;
-  cart_status: string;
-  abandoned_at: string;
-
-  products: Array<{
-    product_name: string;
-    quantity: number;
-    price: number | null;
-    image_url: string | null;
-  }>;
-
+  cart_status: string | null;
+  products: any;
+  agent_id: string | null;
+  agent_name: string | null;
+  assignment_status: string | null;
   attempts: number | null;
   call_status: string | null;
   current_status: string | null;
   follow_up: boolean | null;
+  follow_up_at: string | null;
   notes: string | null;
-  last_call_date: string | null;
+  call_logs: any;
+  activity_logs: any;
+  created_at: string;
+  updated_at: string;
 }
 
 export async function getAgents() {
@@ -49,21 +44,104 @@ export async function getAgents() {
   return { data, error };
 }
 
-export async function getAssignedCarts(agentId: string): Promise<{ data: AssignedCart[] | null, error: any }> {
-  let query = supabase.from('assigned_carts_view').select('*');
+export async function getBrands() {
+  const { data, error } = await supabase
+    .from('abandon_cart_master')
+    .select('brand_name')
+    .not('brand_name', 'is', null);
+    
+  if (error) {
+    console.error('Error fetching brands:', error);
+    return { data: [] };
+  }
+  
+  const uniqueBrands = Array.from(new Set(data.map((item: any) => item.brand_name))).sort();
+  return { data: uniqueBrands };
+}
+
+export async function getProviders() {
+  const { data, error } = await supabase.from('providers').select('*');
+  if (error) console.error('Error fetching providers:', error);
+  return { data, error };
+}
+
+export async function getAssignedCarts(
+  agentId: string,
+  page: number = 1,
+  limit: number = 50,
+  filters: { brand_name?: string; source?: string; current_status?: string; call_status?: string, listTab?: string } = {}
+): Promise<{ data: AssignedCart[] | null, count: number | null, error: any }> {
+  let query = supabase.from('abandon_cart_master').select('*', { count: 'exact' });
   
   if (agentId !== 'all') {
     query = query.eq('agent_id', agentId);
   }
+
+  if (filters.brand_name && filters.brand_name !== 'all') {
+    query = query.eq('brand_name', filters.brand_name);
+  }
+  if (filters.source && filters.source !== 'all') {
+    query = query.eq('source', filters.source);
+  }
+  if (filters.current_status && filters.current_status !== 'all') {
+    query = query.eq('current_status', filters.current_status);
+  }
+  if (filters.call_status && filters.call_status !== 'all') {
+    query = query.eq('call_status', filters.call_status);
+  }
+
+  if (filters.listTab) {
+    if (filters.listTab === 'calls') {
+      query = query.eq('assignment_status', 'ASSIGNED').is('call_status', null);
+    } else if (filters.listTab === 'in_progress' || filters.listTab === 'in') {
+      query = query.not('call_status', 'is', null)
+                   .neq('current_status', 'COMPLETED')
+                   .neq('current_status', 'NOT_INTERESTED');
+    } else if (filters.listTab === 'completed') {
+      query = query.eq('current_status', 'COMPLETED');
+    } else if (filters.listTab === 'not_interested' || filters.listTab === 'not') {
+      query = query.eq('current_status', 'NOT_INTERESTED');
+    }
+  }
+
+  query = query.order('abandoned_at', { ascending: false });
+
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
+  query = query.range(from, to);
   
-  const { data, error } = await query;
+  const { data, count, error } = await query;
     
   if (error) {
     console.error('Error fetching assigned carts:', error);
-    return { data: null, error };
+    return { data: null, count: null, error };
   }
   
-  return { data: data as AssignedCart[] | null, error: null };
+  return { data: data as AssignedCart[] | null, count, error: null };
+}
+
+export async function getCustomerHistory(email: string | null, phone: string | null, currentCartId: string) {
+  if (!email && !phone) return { data: [] };
+
+  let query = supabase
+    .from('abandon_cart_master')
+    .select('*')
+    .neq('id', currentCartId)
+    .order('abandoned_at', { ascending: false });
+
+  // Use an OR condition to match either email or phone if both are present
+  if (email && phone) {
+    query = query.or(`customer_email.eq.${email},customer_phone.eq.${phone}`);
+  } else if (email) {
+    query = query.eq('customer_email', email);
+  } else if (phone) {
+    query = query.eq('customer_phone', phone);
+  }
+
+  const { data, error } = await query;
+  if (error) console.error('Error fetching customer history:', error);
+  
+  return { data: data || [], error };
 }
 
 export async function getFollowUps(agentId: string = TEMP_LOGGED_IN_AGENT_ID) {
@@ -126,9 +204,9 @@ export async function updateRecoveryStatus(cartId: string, assignmentId: string,
 
   // Update state table first
   const { error: updateError } = await supabase
-    .from('cart_recovery_status')
+    .from('abandoned_cart_master')
     .update(updates as never)
-    .eq('cart_id', cartId);
+    .eq('id', cartId);
     
   if (updateError) {
     console.error('Error updating status:', updateError);
@@ -158,9 +236,9 @@ export async function updateRecoveryStatus(cartId: string, assignmentId: string,
 export async function addNote(cartId: string, assignmentId: string, agentId: string, noteText: string) {
   // Update state table first
   const { error: updateError } = await supabase
-    .from('cart_recovery_status')
+    .from('abandoned_cart_master')
     .update({ notes: noteText } as never)
-    .eq('cart_id', cartId);
+    .eq('id', cartId);
     
   if (updateError) {
     console.error('Error adding note to status:', updateError);
@@ -186,8 +264,10 @@ export async function addNote(cartId: string, assignmentId: string, agentId: str
   return { error: null };
 }
 
-export async function updateStatusAndNote(cartId: string, assignmentId: string, agentId: string, newStatus: string, oldStatus: string | null, noteText: string) {
+export async function updateStatusAndNote(cartId: string, assignmentId: string, agentId: string, newStatus: string, oldStatus: string | null, noteText: string, callStatus?: string) {
   let updates: Record<string, any> = { current_status: newStatus, notes: noteText };
+  if (callStatus) updates.call_status = callStatus;
+
   if (newStatus === 'follow_up') {
     updates.follow_up = true;
   } else if (newStatus === 'converted' || newStatus === 'lost') {
@@ -196,7 +276,7 @@ export async function updateStatusAndNote(cartId: string, assignmentId: string, 
 
   // Update state table first
   const { error: updateError } = await supabase
-    .from('cart_recovery_status')
+    .from('abandoned_cart_master')
     .update(updates as never)
     .eq('cart_id', cartId);
     
@@ -228,12 +308,12 @@ export async function updateStatusAndNote(cartId: string, assignmentId: string, 
 export async function scheduleFollowUp(cartId: string, assignmentId: string, agentId: string, followUpTime: string) {
   // Update state table first
   const { error: updateError } = await supabase
-    .from('cart_recovery_status')
+    .from('abandoned_cart_master')
     .update({ 
       follow_up: true,
       follow_up_at: followUpTime 
     } as never)
-    .eq('cart_id', cartId);
+    .eq('id', cartId);
     
   if (updateError) {
     console.error('Error scheduling follow-up:', updateError);

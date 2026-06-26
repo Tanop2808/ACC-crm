@@ -137,15 +137,21 @@ export default function AbandonedCartsPage() {
     return `₹${Number(val).toLocaleString()}`;
   };
 
+  const parseDateUTC = (dateStr: string) => {
+    let safe = dateStr;
+    if (!safe.includes('Z') && !safe.match(/[+-]\d{2}:?\d{2}$/)) safe += 'Z';
+    return new Date(safe);
+  };
+
   const formatDateTime = (dateStr: string | null) => {
     if (!dateStr) return 'Unknown';
-    const d = new Date(dateStr);
-    return `${d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`;
+    const d = parseDateUTC(dateStr);
+    return `${d.toLocaleString('en-US', { timeZone: 'Asia/Kolkata', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`;
   };
   
   const getDaysAgo = (dateStr: string | null) => {
     if (!dateStr) return 'Unknown';
-    const diff = Date.now() - new Date(dateStr).getTime();
+    const diff = Date.now() - parseDateUTC(dateStr).getTime();
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
     if (days === 0) return 'Today';
     if (days === 1) return '1 day ago';
@@ -418,7 +424,7 @@ export default function AbandonedCartsPage() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3 mb-5 p-4 bg-slate-50 rounded-xl border border-slate-100">
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-5 p-4 bg-slate-50 rounded-xl border border-slate-100">
                     <div>
                       <p className="text-[12px] text-slate-500 mb-0.5 font-medium">Cart Value</p>
                       <p className="text-[16px] font-bold text-slate-900">{formatCurrency(selectedCustomer.cart_value)}</p>
@@ -427,6 +433,11 @@ export default function AbandonedCartsPage() {
                       <p className="text-[12px] text-slate-500 mb-0.5 font-medium">Abandoned</p>
                       <p className="text-[13px] font-medium text-slate-900">{formatDateTime(selectedCustomer.abandoned_at)}</p>
                       <p className="text-[12px] text-slate-500 font-medium">{getDaysAgo(selectedCustomer.abandoned_at)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[12px] text-slate-500 mb-0.5 font-medium">Last Updated</p>
+                      <p className="text-[13px] font-medium text-slate-900">{selectedCustomer.updated_at ? formatDateTime(selectedCustomer.updated_at) : '-'}</p>
+                      <p className="text-[12px] text-slate-500 font-medium">{selectedCustomer.updated_at ? getDaysAgo(selectedCustomer.updated_at) : ''}</p>
                     </div>
                   </div>
                   

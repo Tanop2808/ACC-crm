@@ -6,7 +6,7 @@ export async function getCustomers(): Promise<{ data: CustomerRecovery[] | null;
     const { data, error } = await supabase
       .from('customer_recovery_view')
       .select('*')
-      .order('abandoned_at', { ascending: false });
+      .order('updated_at', { ascending: false });
 
     if (error) {
       console.error('Supabase fetch error:', error);

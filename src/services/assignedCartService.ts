@@ -47,7 +47,7 @@ export async function getAssignedCarts(
   let query = supabase
     .from('abandon_cart_master')
     .select('*', { count: 'exact' })
-    .order('abandoned_at', { ascending: false })
+    .order('updated_at', { ascending: false })
     .range((page - 1) * pageSize, page * pageSize - 1);
 
   if (filters?.brand_name && filters.brand_name !== 'all') {

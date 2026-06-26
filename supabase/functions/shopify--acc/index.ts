@@ -267,123 +267,32 @@ Deno.serve(async (req) => {
 
 
     // ==========================================
-    // 6. FIND EXISTING CUSTOMER RECORD
+    // 6. FIND EXISTING CUSTOMER CART (By Cart ID)
     // ==========================================
-
 
     let existingRecord:any = null;
 
-
-
-    // FIRST CHECK EMAIL
-
-
-    if(customerEmail){
-
+    if(checkoutName){
 
       const {
-
-        data:emailMatch,
-
-        error:emailError
-
+        data:cartMatch,
+        error:cartError
       } = await supabase
-
         .from("shopify_acc_table")
-
         .select("*")
-
-        .eq(
-          "brand_id",
-          integration.brand_id
-        )
-
-        .eq(
-          "customer_email",
-          customerEmail
-        )
-
+        .eq("brand_id", integration.brand_id)
+        .eq("cart_id", checkoutName)
         .limit(1)
-        
         .maybeSingle();
 
-
-
-      if(emailError){
-
+      if(cartError){
         console.log(
-          "Email lookup error:",
-          emailError
+          "Cart lookup error:",
+          cartError
         );
-
       }
 
-
-
-      existingRecord =
-        emailMatch;
-
-
-    }
-
-
-
-
-
-
-    // IF EMAIL NOT FOUND CHECK PHONE
-
-
-    if(
-      !existingRecord &&
-      customerPhone
-    ){
-
-
-      const {
-
-        data:phoneMatch,
-
-        error:phoneError
-
-      } = await supabase
-
-        .from("shopify_acc_table")
-
-        .select("*")
-
-        .eq(
-          "brand_id",
-          integration.brand_id
-        )
-
-        .eq(
-          "customer_phone",
-          customerPhone
-        )
-
-        .limit(1)
-
-        .maybeSingle();
-
-
-
-
-
-      if(phoneError){
-
-        console.log(
-          "Phone lookup error:",
-          phoneError
-        );
-
-      }
-
-
-
-      existingRecord =
-        phoneMatch;
-
+      existingRecord = cartMatch;
 
     }
         // ==========================================
@@ -757,7 +666,11 @@ Deno.serve(async (req) => {
 
 
         activity_logs:
-          []
+          [],
+
+
+        updated_at:
+          new Date().toISOString()
 
 
       })

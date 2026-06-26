@@ -106,7 +106,7 @@ export async function getAssignedCarts(
     }
   }
 
-  query = query.order('abandoned_at', { ascending: false });
+  query = query.order('updated_at', { ascending: false });
 
   const from = (page - 1) * limit;
   const to = from + limit - 1;
@@ -129,7 +129,7 @@ export async function getCustomerHistory(email: string | null, phone: string | n
     .from('abandon_cart_master')
     .select('*')
     .neq('id', currentCartId)
-    .order('abandoned_at', { ascending: false });
+    .order('updated_at', { ascending: false });
 
   // Use an OR condition to match either email or phone if both are present
   if (email && phone) {

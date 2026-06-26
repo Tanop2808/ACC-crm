@@ -241,7 +241,8 @@ Deno.serve(async (req: Request) => {
         attempts: 0,
         follow_up: false,
         call_logs: [],
-        activity_logs: []
+        activity_logs: [],
+        updated_at: new Date().toISOString()
       })
       .select()
       .single();

@@ -31,8 +31,10 @@ export default function SettingsPage() {
       if (sessionEmail) {
         setEmail(sessionEmail);
 
+        const cleanEmail = sessionEmail.toLowerCase();
+        
         // Force a live database check to ensure role is completely accurate
-        const { data: roleData } = await (supabase as any).from('user_roles').select('role').eq('email', sessionEmail).maybeSingle();
+        const { data: roleData } = await (supabase as any).from('user_roles').select('role').eq('email', cleanEmail).maybeSingle();
         if (roleData) {
           sessionRole = roleData.role;
           if (typeof window !== 'undefined') localStorage.setItem('session_role', roleData.role);
@@ -44,7 +46,7 @@ export default function SettingsPage() {
           setInitials("AD");
         } else {
           // Agent fallback
-          const { data } = await (supabase as any).from('agents').select('name').eq('email', sessionEmail).maybeSingle();
+          const { data } = await (supabase as any).from('agents').select('name').eq('email', cleanEmail).maybeSingle();
           if (data?.name) {
             setName(data.name);
             setInitials(data.name.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase());

@@ -25,7 +25,8 @@ export default function DashboardLayout({
         } else {
           localStorage.setItem("session_email", session.user.email || "");
           if (session.user.email) {
-            (supabase as any).from("user_roles").select("role").eq("email", session.user.email).maybeSingle().then(({ data }: any) => {
+            const cleanEmail = session.user.email.toLowerCase();
+            (supabase as any).from("user_roles").select("role").eq("email", cleanEmail).maybeSingle().then(({ data }: any) => {
               if (data) localStorage.setItem("session_role", data.role);
               setIsCheckingAuth(false);
             });

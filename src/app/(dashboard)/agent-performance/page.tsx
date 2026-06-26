@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Trophy, TrendingUp, Target, Users, Loader2 } from "lucide-react";
+import { Trophy, TrendingUp, Target, Loader2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 export default function AgentPerformancePage() {

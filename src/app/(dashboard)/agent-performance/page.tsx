@@ -14,7 +14,7 @@ export default function AgentPerformancePage() {
     async function fetchAgents() {
       const { data } = await (supabase as any).from('agents').select('name, email');
       if (data && data.length > 0) {
-        const mapped = data.map((agent, i) => {
+        const mapped = data.map((agent: any, i: number) => {
           // Generate semi-realistic dummy stats based on their index so it looks populated with actual team members
           const baseCarts = 100 - (i * 10);
           const baseConv = 30 - (i * 2);

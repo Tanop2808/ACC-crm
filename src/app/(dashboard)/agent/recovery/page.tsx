@@ -21,7 +21,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { 
-  Bell, Calendar as CalendarIcon, Filter, Download, PhoneCall, MapPin, 
+  User, Bell, Calendar as CalendarIcon, Filter, Download, PhoneCall, MapPin, 
   ShoppingCart, Phone, MoreVertical, CheckCircle2, ChevronLeft, 
   ChevronRight, MessageSquare, Mail, FileEdit, Search,
   Heart, HeartHandshake, Sparkles, Smile, MessageCircle
@@ -30,6 +30,8 @@ import { getAssignedCarts, getBrands, getProviders, TEMP_LOGGED_IN_AGENT_ID, Ass
 import { supabase } from "@/lib/supabase";
 
 export default function AbandonedCartsPage() {
+  const [userName, setUserName] = useState("User");
+  const [userRole, setUserRole] = useState("Agent");
   const [customers, setCustomers] = useState<AssignedCart[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedCartId, setSelectedCartId] = useState<string | null>(null);
@@ -97,6 +99,24 @@ export default function AbandonedCartsPage() {
       
       const { data: pData } = await getProviders();
       if (pData) setProviders(pData);
+
+      const email = typeof window !== 'undefined' ? localStorage.getItem('session_email') : null;
+      const role = typeof window !== 'undefined' ? localStorage.getItem('session_role') : null;
+      
+      if (role) setUserRole(role.charAt(0).toUpperCase() + role.slice(1));
+      
+      if (email) {
+        if (role === 'agent') {
+          const { data: agentData } = await supabase.from('agents').select('name').eq('email', email).maybeSingle();
+          if (agentData?.name) {
+            setUserName(agentData.name);
+          } else {
+            setUserName(email.split('@')[0]);
+          }
+        } else {
+          setUserName(email.split('@')[0]);
+        }
+      }
     }
     init();
 
@@ -171,8 +191,8 @@ export default function AbandonedCartsPage() {
     <div className="flex flex-col min-h-screen bg-[#F8FAFC] -m-4 md:-m-6 font-sans">
       
       {/* Top Header */}
-      <header className="h-20 bg-white border-b border-slate-200 px-8 flex items-center justify-between shrink-0">
-        <div className="ml-10">
+      <header className="h-20 bg-white border-b border-slate-200 px-4 md:px-8 flex items-center justify-between shrink-0">
+        <div className="pl-14 md:pl-20">
           <h1 className="text-xl font-bold text-slate-900 mb-1">Abandoned Cart Calling</h1>
           <p className="text-sm text-slate-500 font-medium">Turn abandoned carts into happy customers</p>
         </div>
@@ -223,12 +243,12 @@ export default function AbandonedCartsPage() {
           <DropdownMenu>
             <DropdownMenuTrigger className="flex items-center gap-3 pl-4 border-l border-slate-200 cursor-pointer outline-none bg-transparent border-t-0 border-r-0 border-b-0 m-0 p-0 hover:bg-transparent">
               <div className="flex items-center gap-3 pl-4">
-                <div className="w-10 h-10 rounded-full overflow-hidden border border-slate-200">
-                  <img src="https://i.pravatar.cc/150?u=admin" alt="Admin" className="w-full h-full object-cover" />
+                <div className="w-10 h-10 rounded-full overflow-hidden border border-slate-200 bg-slate-100 flex items-center justify-center text-slate-500">
+                  <User className="w-5 h-5" />
                 </div>
                 <div className="text-left hidden sm:block">
-                  <p className="text-sm font-bold text-slate-900 leading-tight">Aman Sharma</p>
-                  <p className="text-xs font-medium text-slate-500 leading-tight">Admin</p>
+                  <p className="text-sm font-bold text-slate-900 leading-tight">{userName}</p>
+                  <p className="text-xs font-medium text-slate-500 leading-tight">{userRole}</p>
                 </div>
               </div>
             </DropdownMenuTrigger>

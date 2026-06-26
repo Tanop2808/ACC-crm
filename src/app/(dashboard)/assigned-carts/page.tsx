@@ -55,10 +55,10 @@ export default function AssignedCartsPage() {
   useEffect(() => {
     async function init() {
       const { data: bData } = await getUniqueBrands();
-      if (bData) setBrands(bData);
+      if (bData) setBrands(bData as string[]);
       
       const { data: sData } = await getUniqueSources();
-      if (sData) setSources(sData);
+      if (sData) setSources(sData as string[]);
 
       const { data: aData } = await getAgents();
       if (aData) setAgents(aData);
@@ -168,7 +168,7 @@ export default function AssignedCartsPage() {
             />
           </div>
           
-          <Select value={selectedBrand} onValueChange={(val) => { setSelectedBrand(val); setCurrentPage(1); }}>
+          <Select value={selectedBrand} onValueChange={(val) => { setSelectedBrand(val || "all"); setCurrentPage(1); }}>
             <SelectTrigger className="w-[180px] h-10 border-slate-200">
               <div className="flex items-center gap-2">
                 <Filter className="w-4 h-4 text-slate-500" />
@@ -183,7 +183,7 @@ export default function AssignedCartsPage() {
             </SelectContent>
           </Select>
 
-          <Select value={selectedSource} onValueChange={(val) => { setSelectedSource(val); setCurrentPage(1); }}>
+          <Select value={selectedSource} onValueChange={(val) => { setSelectedSource(val || "all"); setCurrentPage(1); }}>
             <SelectTrigger className="w-[180px] h-10 border-slate-200">
               <div className="flex items-center gap-2">
                 <Filter className="w-4 h-4 text-slate-500" />
@@ -253,15 +253,13 @@ export default function AssignedCartsPage() {
                       </TableCell>
                       <TableCell className="py-4">
                         <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className="h-8 px-2 flex items-center gap-2 hover:bg-slate-100 data-[state=open]:bg-slate-100">
+                          <DropdownMenuTrigger className="h-8 px-2 flex items-center gap-2 hover:bg-slate-100 data-[state=open]:bg-slate-100 rounded-md transition-colors text-sm font-medium cursor-pointer">
                               {cart.agent_name ? (
                                 <span className="font-medium text-slate-700">{cart.agent_name}</span>
                               ) : (
                                 <span className="text-slate-400 italic">Unassigned</span>
                               )}
                               <UserPlus className="w-4 h-4 text-slate-400" />
-                            </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="start" className="w-48">
                             <DropdownMenuLabel>Assign Agent</DropdownMenuLabel>

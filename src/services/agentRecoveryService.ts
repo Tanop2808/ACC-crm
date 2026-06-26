@@ -5,6 +5,7 @@ export const TEMP_LOGGED_IN_AGENT_ID = 'd54e4800-b005-4da2-bdf0-9af540c5f58c';
 export interface AssignedCart {
   id: string;
   brand_id: string | null;
+  brand_name: string | null;
   provider_id: string | null;
   integration_id: string | null;
   source: string | null;
@@ -22,6 +23,7 @@ export interface AssignedCart {
   cart_value: number;
   currency: string;
   cart_status: string | null;
+  abandoned_at: string | null;
   products: any;
   agent_id: string | null;
   agent_name: string | null;
@@ -55,7 +57,7 @@ export async function getBrands() {
     return { data: [] };
   }
   
-  const uniqueBrands = Array.from(new Set(data.map((item: any) => item.brand_name))).sort();
+  const uniqueBrands = Array.from(new Set(((data as any[]) || []).map((item: any) => item.brand_name))).sort();
   return { data: uniqueBrands };
 }
 

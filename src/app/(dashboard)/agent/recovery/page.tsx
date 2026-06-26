@@ -184,7 +184,6 @@ export default function AbandonedCartsPage() {
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
               <Calendar
-                initialFocus
                 mode="range"
                 defaultMonth={dateRange?.from}
                 selected={dateRange}
@@ -194,7 +193,7 @@ export default function AbandonedCartsPage() {
             </PopoverContent>
           </Popover>
           
-          <Select value={selectedBrand} onValueChange={setSelectedBrand}>
+          <Select value={selectedBrand} onValueChange={(val) => setSelectedBrand(val || "all")}>
             <SelectTrigger className="w-[200px] h-10 border-slate-200 text-slate-700 font-medium">
               <div className="flex items-center gap-2">
                 <Filter className="w-4 h-4 text-slate-500" />

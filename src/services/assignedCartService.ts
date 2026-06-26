@@ -78,7 +78,7 @@ export async function getUniqueBrands() {
     return { data: [] };
   }
   
-  const uniqueBrands = Array.from(new Set(data.map((item: any) => item.brand_name))).sort();
+  const uniqueBrands = Array.from(new Set(((data as any[]) || []).map((item: any) => item.brand_name))).sort();
   return { data: uniqueBrands };
 }
 
@@ -93,7 +93,7 @@ export async function getUniqueSources() {
     return { data: [] };
   }
   
-  const uniqueSources = Array.from(new Set(data.map((item: any) => item.source))).sort();
+  const uniqueSources = Array.from(new Set(((data as any[]) || []).map((item: any) => item.source))).sort();
   return { data: uniqueSources };
 }
 
@@ -113,6 +113,7 @@ export async function updateCartField(
     
   const { data, error } = await supabase
     .from(targetTable)
+    // @ts-ignore: Dynamic table name causes Supabase to infer 'never' type
     .update(updates)
     .eq('id', id)
     .select();

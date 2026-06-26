@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { User, Bell, Shield, Key, ShieldCheck, UserX, Loader2, Plus, Trash2 } from "lucide-react";
+import { User, ShieldCheck, Loader2, Plus, Trash2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { getAdmins, addAdmin, removeAdmin, UserRole } from "@/services/adminService";
 

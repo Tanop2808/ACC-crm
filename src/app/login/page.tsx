@@ -50,11 +50,9 @@ export default function LoginPage() {
             <Terminal className="text-white w-7 h-7" />
           </div>
           <h1 className="text-2xl font-extrabold text-foreground tracking-tight">
-            Datastraw CRM Console
+            Datastraw ACC Console
           </h1>
-          <p className="text-[14px] text-muted-foreground font-medium">
-            Recovery Terminal | operator@datastraw.in
-          </p>
+          
         </div>
 
         {/* Card */}

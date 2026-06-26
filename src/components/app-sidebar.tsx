@@ -33,14 +33,23 @@ export function AppSidebar() {
     const storedEmail = localStorage.getItem("session_email")
     const storedRole = localStorage.getItem("session_role")
     
-    if (storedEmail) setEmail(storedEmail)
+    if (storedEmail) {
+      setEmail(storedEmail)
+      // Force a live database check to ensure role is completely accurate
+      ;(async () => {
+        const { data: roleData } = await (supabase as any).from('user_roles').select('role').eq('email', storedEmail).maybeSingle();
+        if (roleData) {
+          setRole(roleData.role);
+          localStorage.setItem('session_role', roleData.role);
+        }
+      })();
+    }
+    
     if (storedRole) setRole(storedRole)
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         setEmail(session.user.email || null)
-        // If logged in via standard Supabase but role isn't locally cached,
-        // we fallback to local storage role or standard agent.
       }
     })
   }, [pathname])

@@ -105,13 +105,11 @@ export async function generateIntegrationToken(brandId: string, providerId: stri
   const cleanProvider = provider.name.toLowerCase().replace(/[^a-z0-9]/g, '');
   const prefix = `${cleanBrand}_${cleanProvider}_`;
 
-  // Fetch all existing integration tokens starting with prefix
+  // Fetch all existing integration tokens for this provider across ALL brands
   const { data: integrations } = await (supabase as any)
     .from('integrations')
     .select('integration_token')
-    .eq('brand_id', brandId)
-    .eq('provider_id', providerId)
-    .like('integration_token', `${prefix}%`);
+    .eq('provider_id', providerId);
 
   let maxNum = 0;
   if (integrations) {

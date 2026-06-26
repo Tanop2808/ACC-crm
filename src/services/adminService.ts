@@ -283,12 +283,22 @@ export async function addAdmin(email: string) {
 
   const { data: existing } = await (supabase as any)
     .from('user_roles')
-    .select('id')
+    .select('id, role')
     .eq('email', cleanEmail)
     .maybeSingle();
 
   if (existing) {
-    return { data: null, error: new Error('User is already assigned a role.') };
+    if (existing.role === 'admin') {
+      return { data: null, error: new Error('User is already an admin.') };
+    }
+    // Upgrade existing agent to admin
+    const { data, error } = await (supabase as any)
+      .from('user_roles')
+      .update({ role: 'admin' })
+      .eq('email', cleanEmail)
+      .select()
+      .single();
+    return { data: data as UserRole | null, error };
   }
 
   const { data, error } = await (supabase as any)

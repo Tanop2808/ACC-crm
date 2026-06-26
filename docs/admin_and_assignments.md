@@ -9,6 +9,22 @@ The Admin Dashboard serves as the central command center for managing the CRM's 
 ### Key Features
 *   **Brand Center**: The core interface where Admins can view and manage all client brands integrated into the system.
 *   **Agent Assignment Management**: Within each Brand's detail view, Admins can view, assign, and revoke Agent access. This interface directly manipulates the `agent_brand_assignments` table, linking an agent's email to a specific `brand_name`.
+*   ## Integration Architecture (Round Robin Distribution)
+
+When a brand is integrated with a provider (like Shopify or Shiprocket), it receives a unique `integration_token`.
+
+1. **Webhook Ingestion (Edge Functions)**:
+   Third-party platforms send abandoned cart payloads directly to the CRM's Supabase Edge Functions (`supabase/functions/shopify--acc` or `shiprocket--acc`).
+   
+2. **Payload Mapping**:
+   The Edge Function securely maps the raw JSON payload to the CRM's internal unified schema and inserts it into the respective provider table (e.g. `shopify_acc_table`).
+
+3. **Atomic Round Robin Assignment**:
+   Immediately after inserting the cart, the Edge Function triggers a PostgreSQL Stored Procedure (`assign_cart_round_robin`). 
+   - This procedure uses a `SELECT ... FOR UPDATE` lock on the `brand_round_robin_state` table to ensure **thread-safety**.
+   - It fetches all active agents assigned to the brand and perfectly alternates them in sequence (Agent 1 -> 2 -> 3 -> 1).
+   - Even if 100 carts hit the webhook concurrently in the exact same millisecond, the PostgreSQL lock forces them into a strict queue, guaranteeing zero race conditions and perfectly equal distribution.
+   - The selected agent is dynamically written back into the provider table and tracked permanently in `cart_assignments`.
 *   **Integrations & Webhooks**: Dedicated terminals for configuring external data sources (like Shopify) and mapping incoming webhooks to the correct brands in the CRM.
 *   **Performance Leaderboard**: A dynamic dashboard that queries the active `agents` table in real-time, ranking team members and displaying floor averages.
 

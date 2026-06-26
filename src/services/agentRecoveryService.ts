@@ -41,7 +41,7 @@ export interface AssignedCart {
 }
 
 export async function getAgents() {
-  const { data, error } = await supabase.from('agents').select('*');
+  const { data, error } = await (supabase as any).from('agents').select('*');
   if (error) console.error('Error fetching agents:', error);
   return { data, error };
 }
@@ -80,7 +80,7 @@ export async function getBrands() {
 }
 
 export async function getProviders() {
-  const { data, error } = await supabase.from('providers').select('*');
+  const { data, error } = await (supabase as any).from('providers').select('*');
   if (error) console.error('Error fetching providers:', error);
   return { data, error };
 }

@@ -107,7 +107,7 @@ export default function AbandonedCartsPage() {
       
       if (email) {
         if (role === 'agent') {
-          const { data: agentData } = await supabase.from('agents').select('name').eq('email', email).maybeSingle();
+          const { data: agentData } = await (supabase as any).from('agents').select('name').eq('email', email).maybeSingle();
           if (agentData?.name) {
             setUserName(agentData.name);
           } else {

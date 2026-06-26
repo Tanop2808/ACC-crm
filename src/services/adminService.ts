@@ -257,3 +257,56 @@ export async function checkUserRole(email: string): Promise<'admin' | 'agent' | 
 
   return data.role as 'admin' | 'agent';
 }
+
+export interface UserRole {
+  id: string;
+  email: string;
+  role: string;
+  created_at: string;
+}
+
+// Fetch all active admins
+export async function getAdmins() {
+  const { data, error } = await (supabase as any)
+    .from('user_roles')
+    .select('*')
+    .eq('role', 'admin')
+    .order('created_at', { ascending: false });
+  return { data: data as UserRole[] | null, error };
+}
+
+// Add a new admin by email
+export async function addAdmin(email: string) {
+  const cleanEmail = email.trim().toLowerCase();
+  
+  if (!cleanEmail.endsWith('@datastraw.in')) {
+    return { data: null, error: new Error('Only @datastraw.in emails are allowed.') };
+  }
+
+  const { data: existing } = await (supabase as any)
+    .from('user_roles')
+    .select('id')
+    .eq('email', cleanEmail)
+    .maybeSingle();
+
+  if (existing) {
+    return { data: null, error: new Error('User is already assigned a role.') };
+  }
+
+  const { data, error } = await (supabase as any)
+    .from('user_roles')
+    .insert([{ email: cleanEmail, role: 'admin' }])
+    .select()
+    .single();
+    
+  return { data, error };
+}
+
+// Revoke an admin's access
+export async function removeAdmin(id: string) {
+  const { error } = await (supabase as any)
+    .from('user_roles')
+    .delete()
+    .eq('id', id);
+  return { error };
+}

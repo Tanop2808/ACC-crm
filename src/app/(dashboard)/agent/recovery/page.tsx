@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { DateRange } from "react-day-picker";
@@ -36,10 +37,15 @@ export default function AbandonedCartsPage() {
   const [activeDetailTab, setActiveDetailTab] = useState("script");
   const [customerHistory, setCustomerHistory] = useState<AssignedCart[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
-  const [isFiltersCollapsed, setIsFiltersCollapsed] = useState(false);
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const [brands, setBrands] = useState<any[]>([]);
   const [providers, setProviders] = useState<any[]>([]);
   const [selectedBrand, setSelectedBrand] = useState<string>("all");
+  const [cartMin, setCartMin] = useState<number>(200);
+  const [cartMax, setCartMax] = useState<number>(15000);
+  const [abandonedFrom, setAbandonedFrom] = useState<string>('');
+  const [abandonedTo, setAbandonedTo] = useState<string>('');
+  const [selectedPriorities, setSelectedPriorities] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -157,6 +163,10 @@ export default function AbandonedCartsPage() {
     return name.split(' ').map(n => n[0]).join('').substring(0,2).toUpperCase();
   };
 
+  const togglePriority = (p: string) => setSelectedPriorities(prev =>
+    prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p]
+  );
+
   return (
     <div className="flex flex-col min-h-screen bg-[#F8FAFC] -m-4 md:-m-6 font-sans">
       
@@ -237,99 +247,23 @@ export default function AbandonedCartsPage() {
       {/* Main Content Padding */}
       <div className="p-8 flex-1 flex flex-col max-w-[1800px] w-full mx-auto">
         
-        {/* 3-Pane Unified Card */}
-        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm flex flex-1 overflow-hidden min-h-[700px]">
+        {/* 2-Pane Unified Card */}
+        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px] flex-1 overflow-hidden min-h-[700px]">
           
-          {/* Left Pane - Filters */}
-          <div className={`shrink-0 flex flex-col transition-all duration-300 border-r border-slate-100 bg-white ${isFiltersCollapsed ? 'w-[70px]' : 'w-[280px]'}`}>
-            {!isFiltersCollapsed ? (
-              <>
-                <div className="p-6 pb-2">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-bold text-[16px] text-slate-900">Filters</h3>
-                      <button onClick={() => setIsFiltersCollapsed(true)} className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-600 transition-colors">
-                        <ChevronLeft className="w-4 h-4" />
-                      </button>
-                    </div>
-                    <button className="text-[13px] font-bold text-slate-400 hover:text-slate-600 transition-colors">Clear All</button>
-                  </div>
-                  <div className="relative mb-6">
-                    <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <Input 
-                      placeholder="Search filters" 
-                      className="pl-9 h-11 bg-white border-slate-200 rounded-lg text-[13px] shadow-sm font-medium" 
-                    />
-                  </div>
-                </div>
-                <div className="px-6 flex-1 overflow-y-auto custom-scrollbar space-y-5 pb-6">
-              <div className="space-y-2.5">
-                <label className="text-[13px] font-bold text-slate-600">Campaign</label>
-                <Select defaultValue="all">
-                  <SelectTrigger className="w-full h-11 bg-white border-slate-200 text-slate-700 shadow-sm rounded-lg font-medium">
-                    <SelectValue placeholder="All Campaigns" />
-                  </SelectTrigger>
-                  <SelectContent><SelectItem value="all">All Campaigns</SelectItem></SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2.5">
-                <label className="text-[13px] font-bold text-slate-600">Abandoned Days</label>
-                <Select defaultValue="1-3">
-                  <SelectTrigger className="w-full h-11 bg-white border-slate-200 text-slate-700 shadow-sm rounded-lg font-medium">
-                    <SelectValue placeholder="1 - 3 days" />
-                  </SelectTrigger>
-                  <SelectContent><SelectItem value="1-3">1 - 3 days</SelectItem></SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2.5">
-                <label className="text-[13px] font-bold text-slate-600">Cart Value</label>
-                <Select defaultValue="all">
-                  <SelectTrigger className="w-full h-11 bg-white border-slate-200 text-slate-700 shadow-sm rounded-lg font-medium">
-                    <SelectValue placeholder="All Values" />
-                  </SelectTrigger>
-                  <SelectContent><SelectItem value="all">All Values</SelectItem></SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2.5">
-                <label className="text-[13px] font-bold text-slate-600">Payment Status</label>
-                <Select defaultValue="all">
-                  <SelectTrigger className="w-full h-11 bg-white border-slate-200 text-slate-700 shadow-sm rounded-lg font-medium">
-                    <SelectValue placeholder="All" />
-                  </SelectTrigger>
-                  <SelectContent><SelectItem value="all">All</SelectItem></SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2.5">
-                <label className="text-[13px] font-bold text-slate-600">Customer Tags</label>
-                <Select defaultValue="all">
-                  <SelectTrigger className="w-full h-11 bg-white border-slate-200 text-slate-700 shadow-sm rounded-lg font-medium">
-                    <SelectValue placeholder="All Tags" />
-                  </SelectTrigger>
-                  <SelectContent><SelectItem value="all">All Tags</SelectItem></SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="p-6 pt-0 mt-auto">
-              <Button className="w-full h-12 bg-[#7B5EE4] hover:bg-[#684bd3] text-white font-bold rounded-xl shadow-md text-[14px]">
-                Apply Filters
-              </Button>
-            </div>
-          </>
-        ) : (
-          <div className="flex-1 flex flex-col items-center py-6 h-full bg-slate-50 border-t border-slate-100">
-            <button onClick={() => setIsFiltersCollapsed(false)} className="p-2 hover:bg-white border border-transparent hover:border-slate-200 shadow-sm rounded-xl text-slate-500 hover:text-[#7B5EE4] transition-all" title="Expand Filters">
-              <Filter className="w-5 h-5" />
-            </button>
-          </div>
-        )}
-      </div>
-
-          {/* Removed duplicate border */}
-
           {/* Middle Pane - List */}
-          <div className="flex-1 flex flex-col min-w-[650px]">
-            {/* List Tabs */}
-            <div className="flex border-b border-slate-200 px-6 bg-white overflow-x-auto custom-scrollbar pt-2 shrink-0">
+          <div className="flex flex-col min-w-0 min-h-0 overflow-hidden border-r border-slate-200">
+            {/* List Tabs + Filter */}
+            <div className="flex items-center border-b border-slate-200 px-4 bg-white shrink-0">
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-9 w-9 shrink-0 mr-3 my-2 border-slate-200 text-slate-600 hover:text-[#7B5EE4] hover:border-[#7B5EE4]/30"
+                onClick={() => setIsFiltersOpen(true)}
+                title="Filters"
+              >
+                <Filter className="w-4 h-4" />
+              </Button>
+              <div className="flex flex-1 overflow-x-auto custom-scrollbar pt-2 min-w-0">
               {[
                 { id: 'all', label: 'All Carts' },
                 { id: 'calls', label: 'Calls to Make' },
@@ -350,9 +284,12 @@ export default function AbandonedCartsPage() {
                   </button>
                 )
               })}
+              </div>
             </div>
             
-            {/* List Header */}
+            {/* List Header + Rows */}
+            <div className="flex-1 overflow-auto custom-scrollbar min-h-0">
+              <div className="min-w-[720px]">
             <div className="grid grid-cols-12 gap-4 px-6 py-4 border-b border-slate-100 bg-white">
               <div className="col-span-1 flex items-center justify-center"><Checkbox className="w-4 h-4 rounded" /></div>
               <div className="col-span-3 text-[12px] font-bold text-slate-500">Customer</div>
@@ -364,7 +301,7 @@ export default function AbandonedCartsPage() {
             </div>
 
             {/* List Content */}
-            <div className="flex-1 overflow-y-auto custom-scrollbar">
+            <div>
               {customers.map((c) => {
                 const isSelected = c.id === selectedCartId;
                 const prio = getPriority(c.cart_value || 0);
@@ -417,6 +354,8 @@ export default function AbandonedCartsPage() {
                 <div className="p-12 text-center text-slate-500 font-medium">No carts found.</div>
               )}
             </div>
+              </div>
+            </div>
             
             {/* List Footer / Pagination */}
             <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between text-slate-500 text-[13px] font-medium bg-white shrink-0">
@@ -441,53 +380,58 @@ export default function AbandonedCartsPage() {
             </div>
           </div>
 
-          <div className="w-px bg-slate-200 shrink-0"></div>
-
           {/* Right Pane - Details */}
-          <div className="w-[520px] shrink-0 flex flex-col bg-white">
+          <div className="flex flex-col bg-white overflow-hidden min-h-0">
             {selectedCustomer ? (
               <>
                 {/* Profile Block */}
-                <div className="p-8 pb-0">
-                  <div className="flex justify-between items-start mb-8 gap-4">
-                    <div className="flex gap-4 min-w-0">
-                      <div className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 font-bold text-xl shrink-0">
-                        {getInitials(selectedCustomer.customer_name)}
+                <div className="p-6 pb-0">
+                  <div className="flex items-start gap-4 mb-5">
+                    <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 font-bold text-lg shrink-0">
+                      {getInitials(selectedCustomer.customer_name)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2 mb-2">
+                        <h2 className="text-[17px] font-bold text-slate-900 leading-tight break-words">{selectedCustomer.customer_name || 'Unknown'}</h2>
+                        <Badge className={`shrink-0 border-none text-[11px] font-bold px-2.5 py-0.5 rounded-full ${getPriority(selectedCustomer.cart_value || 0).color}`}>
+                          {getPriority(selectedCustomer.cart_value || 0).label} Priority
+                        </Badge>
                       </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-3 mb-1">
-                          <h2 className="text-[18px] font-bold text-slate-900 leading-none truncate">{selectedCustomer.customer_name || 'Unknown'}</h2>
-                          <Badge className={`shrink-0 border-none text-[11px] font-bold px-2.5 py-0.5 rounded-full ${getPriority(selectedCustomer.cart_value || 0).color}`}>
-                            {getPriority(selectedCustomer.cart_value || 0).label} Priority
-                          </Badge>
-                        </div>
-                        <p className="text-[13px] font-medium text-slate-500 flex items-center gap-2 mb-1 mt-2 truncate">
-                          <PhoneCall className="w-3.5 h-3.5 shrink-0" /> <span className="truncate">{selectedCustomer.customer_phone || 'N/A'}</span>
+                      <div className="space-y-1.5">
+                        <p className="text-[13px] font-medium text-slate-500 flex items-start gap-2">
+                          <PhoneCall className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                          <span className="break-all">{selectedCustomer.customer_phone || 'N/A'}</span>
                         </p>
-                        <p className="text-[13px] font-medium text-slate-500 flex items-center gap-2 mb-1 truncate">
-                          <MapPin className="w-3.5 h-3.5 shrink-0" /> <span className="truncate">{[selectedCustomer.city, selectedCustomer.state, selectedCustomer.country].filter(Boolean).join(', ') || 'Unknown Location'}</span>
+                        <p className="text-[13px] font-medium text-slate-500 flex items-start gap-2">
+                          <MapPin className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                          <span className="break-words">{[selectedCustomer.city, selectedCustomer.state, selectedCustomer.country].filter(Boolean).join(', ') || 'Unknown Location'}</span>
                         </p>
-                        <p className="text-[13px] font-medium text-slate-500 flex items-center gap-2 truncate">
-                          <ShoppingCart className="w-3.5 h-3.5 shrink-0" /> 
-                          <span className="truncate">
-                            {selectedCustomer.brand_name || 'Unknown Brand'} 
-                            {' • '} 
+                        <p className="text-[13px] font-medium text-slate-500 flex items-start gap-2">
+                          <ShoppingCart className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                          <span className="break-words">
+                            {selectedCustomer.brand_name || 'Unknown Brand'}
+                            {' • '}
                             {selectedCustomer.source ? selectedCustomer.source.charAt(0).toUpperCase() + selectedCustomer.source.slice(1) : (providers.find(p => p.id === selectedCustomer.provider_id)?.name || 'Unknown Provider')}
                           </span>
                         </p>
                       </div>
                     </div>
-                    <div className="text-right shrink-0">
-                      <p className="text-[13px] text-slate-500 mb-0.5 font-medium">Cart Value</p>
-                      <p className="text-[18px] font-bold text-slate-900 mb-3">{formatCurrency(selectedCustomer.cart_value)}</p>
-                      <p className="text-[13px] text-slate-500 mb-0.5 font-medium">Abandoned</p>
-                      <p className="text-[13px] font-medium text-slate-900 mb-0.5">{formatDateTime(selectedCustomer.abandoned_at)}</p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 mb-5 p-4 bg-slate-50 rounded-xl border border-slate-100">
+                    <div>
+                      <p className="text-[12px] text-slate-500 mb-0.5 font-medium">Cart Value</p>
+                      <p className="text-[16px] font-bold text-slate-900">{formatCurrency(selectedCustomer.cart_value)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[12px] text-slate-500 mb-0.5 font-medium">Abandoned</p>
+                      <p className="text-[13px] font-medium text-slate-900">{formatDateTime(selectedCustomer.abandoned_at)}</p>
                       <p className="text-[12px] text-slate-500 font-medium">{getDaysAgo(selectedCustomer.abandoned_at)}</p>
                     </div>
                   </div>
                   
                   {/* Detail Tabs */}
-                  <div className="flex gap-2 overflow-x-auto custom-scrollbar border-b border-slate-100 pb-px">
+                  <div className="flex flex-wrap gap-x-1 gap-y-0 border-b border-slate-100 pb-px">
                     {['Cart Details', 'Customer Info', 'Call Script', 'History', 'Activity', 'Notes'].map(tab => {
                       const tabId = tab.split(' ')[1] ? tab.split(' ')[1].toLowerCase() : tab.split(' ')[0].toLowerCase();
                       const isActive = activeDetailTab === tabId || (tabId === 'script' && activeDetailTab === 'script');
@@ -495,7 +439,7 @@ export default function AbandonedCartsPage() {
                         <button 
                           key={tab}
                           onClick={() => setActiveDetailTab(tabId)}
-                          className={`px-4 py-3 text-[14px] font-bold whitespace-nowrap transition-colors border-b-2 ${
+                          className={`px-3 py-2.5 text-[13px] font-bold whitespace-nowrap transition-colors border-b-2 -mb-px ${
                             isActive ? 'text-[#7B5EE4] border-[#7B5EE4]' : 'text-slate-500 border-transparent hover:text-slate-800'
                           }`}
                         >
@@ -507,16 +451,16 @@ export default function AbandonedCartsPage() {
                 </div>
 
                 {/* Tab Content */}
-                <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+                <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
                   {/* Ready to call banner */}
-                  <div className="bg-[#F0FDF4] border border-[#DCFCE7] rounded-2xl p-5 flex items-center justify-between mb-8 shadow-sm">
+                  <div className="bg-[#F0FDF4] border border-[#DCFCE7] rounded-2xl p-4 flex flex-col gap-4 mb-6 shadow-sm">
                     <div>
                       <p className="text-[14px] font-bold text-[#16A34A] flex items-center gap-2 mb-1">
-                        <CheckCircle2 className="w-5 h-5" /> Ready to Call
+                        <CheckCircle2 className="w-5 h-5 shrink-0" /> Ready to Call
                       </p>
                       <p className="text-[13px] font-medium text-[#15803D]">Customer is available. You can start the call.</p>
                     </div>
-                    <Button className="bg-[#7B5EE4] hover:bg-[#684bd3] text-white shadow-md rounded-xl font-bold h-12 px-6 flex items-center gap-2 transition-colors text-[14px]">
+                    <Button className="w-full bg-[#7B5EE4] hover:bg-[#684bd3] text-white shadow-md rounded-xl font-bold h-11 flex items-center justify-center gap-2 transition-colors text-[14px]">
                       <PhoneCall className="w-4 h-4 fill-white" /> Start Call
                     </Button>
                   </div>
@@ -585,20 +529,20 @@ export default function AbandonedCartsPage() {
                   )}
 
                   {activeDetailTab === 'info' && (
-                    <div className="space-y-6">
-                      <h3 className="font-bold text-[16px] text-slate-900 mb-2">Customer Information</h3>
-                      <div className="grid grid-cols-2 gap-y-6 gap-x-4">
+                    <div className="space-y-5">
+                      <h3 className="font-bold text-[16px] text-slate-900">Customer Information</h3>
+                      <div className="space-y-4">
                         <div>
                           <p className="text-[12px] text-slate-500 font-bold mb-1">Email Address</p>
-                          <p className="text-[14px] text-slate-900 font-medium">{selectedCustomer.customer_email || 'N/A'}</p>
+                          <p className="text-[14px] text-slate-900 font-medium break-all">{selectedCustomer.customer_email || 'N/A'}</p>
                         </div>
                         <div>
                           <p className="text-[12px] text-slate-500 font-bold mb-1">Phone Number</p>
                           <p className="text-[14px] text-slate-900 font-medium">{selectedCustomer.customer_phone || 'N/A'}</p>
                         </div>
-                        <div className="col-span-2">
+                        <div>
                           <p className="text-[12px] text-slate-500 font-bold mb-1">Shipping Address</p>
-                          <p className="text-[14px] text-slate-900 font-medium leading-relaxed">
+                          <p className="text-[14px] text-slate-900 font-medium leading-relaxed break-words">
                             {[selectedCustomer.address1, selectedCustomer.address2, selectedCustomer.city, selectedCustomer.state, selectedCustomer.country, selectedCustomer.zip].filter(Boolean).join(', ') || 'N/A'}
                           </p>
                         </div>
@@ -612,12 +556,12 @@ export default function AbandonedCartsPage() {
                       {selectedCustomer.checkout_url && (
                         <div className="mb-6">
                           <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Checkout URL</p>
-                          <div className="flex gap-2">
-                            <div className="bg-slate-50 border border-slate-200 rounded-md px-3 py-2.5 flex-1 overflow-hidden flex items-center">
-                              <p className="text-[13px] text-slate-600 truncate">{selectedCustomer.checkout_url}</p>
+                          <div className="flex gap-2 flex-col sm:flex-row">
+                            <div className="bg-slate-50 border border-slate-200 rounded-md px-3 py-2.5 flex-1 overflow-hidden flex items-center min-w-0">
+                              <p className="text-[13px] text-slate-600 break-all">{selectedCustomer.checkout_url}</p>
                             </div>
                             <Button 
-                              className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-bold rounded-md px-4 text-[13px] shrink-0" 
+                              className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-bold rounded-md px-4 text-[13px] shrink-0 w-full sm:w-auto" 
                               onClick={() => {
                                 navigator.clipboard.writeText(selectedCustomer.checkout_url || '');
                               }}
@@ -715,19 +659,19 @@ export default function AbandonedCartsPage() {
                 </div>
 
                 {/* Quick Actions Footer */}
-                <div className="p-8 pt-0 bg-white shrink-0">
-                  <p className="text-[14px] font-bold text-slate-900 mb-4">Quick Actions</p>
-                  <div className="flex flex-nowrap gap-2">
-                    <Button variant="outline" className="flex-1 bg-slate-50 border-slate-200 text-slate-700 hover:text-slate-900 hover:bg-slate-100 h-9 px-1 text-[12px] font-medium shadow-none rounded-lg flex items-center justify-center gap-1.5 transition-colors whitespace-nowrap">
-                      <MessageCircle className="w-4 h-4 text-[#16A34A] shrink-0" /> Send WhatsApp
+                <div className="p-6 pt-0 bg-white shrink-0 border-t border-slate-100">
+                  <p className="text-[14px] font-bold text-slate-900 mb-3 pt-4">Quick Actions</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button variant="outline" className="bg-slate-50 border-slate-200 text-slate-700 hover:text-slate-900 hover:bg-slate-100 h-10 px-3 text-[12px] font-medium shadow-none rounded-lg flex items-center justify-center gap-1.5 transition-colors">
+                      <MessageCircle className="w-4 h-4 text-[#16A34A] shrink-0" /> WhatsApp
                     </Button>
-                    <Button variant="outline" className="flex-1 bg-slate-50 border-slate-200 text-slate-700 hover:text-slate-900 hover:bg-slate-100 h-9 px-1 text-[12px] font-medium shadow-none rounded-lg flex items-center justify-center gap-1.5 transition-colors whitespace-nowrap">
-                      <MessageSquare className="w-4 h-4 text-slate-500 shrink-0" /> Send SMS
+                    <Button variant="outline" className="bg-slate-50 border-slate-200 text-slate-700 hover:text-slate-900 hover:bg-slate-100 h-10 px-3 text-[12px] font-medium shadow-none rounded-lg flex items-center justify-center gap-1.5 transition-colors">
+                      <MessageSquare className="w-4 h-4 text-slate-500 shrink-0" /> SMS
                     </Button>
-                    <Button variant="outline" className="flex-1 bg-slate-50 border-slate-200 text-slate-700 hover:text-slate-900 hover:bg-slate-100 h-9 px-1 text-[12px] font-medium shadow-none rounded-lg flex items-center justify-center gap-1.5 transition-colors whitespace-nowrap">
-                      <Mail className="w-4 h-4 text-slate-500 shrink-0" /> Email Cart
+                    <Button variant="outline" className="bg-slate-50 border-slate-200 text-slate-700 hover:text-slate-900 hover:bg-slate-100 h-10 px-3 text-[12px] font-medium shadow-none rounded-lg flex items-center justify-center gap-1.5 transition-colors">
+                      <Mail className="w-4 h-4 text-slate-500 shrink-0" /> Email
                     </Button>
-                    <Button variant="outline" className="flex-1 bg-slate-50 border-slate-200 text-slate-700 hover:text-slate-900 hover:bg-slate-100 h-9 px-1 text-[12px] font-medium shadow-none rounded-lg flex items-center justify-center gap-1.5 transition-colors whitespace-nowrap">
+                    <Button variant="outline" className="bg-slate-50 border-slate-200 text-slate-700 hover:text-slate-900 hover:bg-slate-100 h-10 px-3 text-[12px] font-medium shadow-none rounded-lg flex items-center justify-center gap-1.5 transition-colors">
                       <FileEdit className="w-4 h-4 text-slate-500 shrink-0" /> Add Note
                     </Button>
                   </div>
@@ -740,6 +684,172 @@ export default function AbandonedCartsPage() {
             )}
           </div>
         </div>
+
+        {/* Filters Sheet */}
+        <Sheet open={isFiltersOpen} onOpenChange={setIsFiltersOpen}>
+          <SheetContent side="left" className="w-[320px] sm:max-w-[320px] p-0 flex flex-col">
+            <SheetHeader className="px-6 pt-6 pb-2 border-b border-slate-100">
+              <div className="flex items-center justify-between pr-8">
+                <SheetTitle className="font-bold text-[16px] text-slate-900">Filters</SheetTitle>
+                <button
+                onClick={() => { setCartMin(200); setCartMax(15000); setAbandonedFrom(''); setAbandonedTo(''); setSelectedPriorities([]); }}
+                className="text-[13px] font-bold text-slate-400 hover:text-slate-600 transition-colors"
+              >Clear All</button>
+              </div>
+            </SheetHeader>
+            <div className="px-6 pt-4 pb-2">
+              <div className="relative">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <Input 
+                  placeholder="Search filters" 
+                  className="pl-9 h-11 bg-white border-slate-200 rounded-lg text-[13px] shadow-sm font-medium" 
+                />
+              </div>
+            </div>
+            <div className="px-6 flex-1 overflow-y-auto custom-scrollbar space-y-8 pb-6">
+
+              {/* Cart Value — dual-thumb range slider */}
+              <div className="space-y-4">
+                <label className="text-[13px] font-bold text-slate-600">Cart Value</label>
+                <div className="px-1">
+                  <div className="relative h-5 flex items-center mb-5">
+                    {/* track background */}
+                    <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-1.5 bg-slate-200 rounded-full pointer-events-none" />
+                    {/* active fill */}
+                    <div
+                      className="absolute top-1/2 -translate-y-1/2 h-1.5 bg-[#7B5EE4] rounded-full pointer-events-none"
+                      style={{
+                        left: `${((cartMin - 200) / 14800) * 100}%`,
+                        right: `${100 - ((cartMax - 200) / 14800) * 100}%`,
+                      }}
+                    />
+                    {/* min thumb */}
+                    <input
+                      type="range"
+                      min={200}
+                      max={15000}
+                      step={100}
+                      value={cartMin}
+                      onChange={e => setCartMin(Math.min(Number(e.target.value), cartMax - 500))}
+                      className="absolute inset-0 w-full pointer-events-none appearance-none bg-transparent
+                        [&::-webkit-slider-runnable-track]:bg-transparent
+                        [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none
+                        [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5
+                        [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white
+                        [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-[#7B5EE4]
+                        [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:cursor-grab
+                        [&::-moz-range-track]:bg-transparent
+                        [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:h-5
+                        [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:rounded-full
+                        [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:border-2
+                        [&::-moz-range-thumb]:border-[#7B5EE4] [&::-moz-range-thumb]:shadow-md"
+                      style={{ zIndex: cartMin > cartMax - 3000 ? 5 : 3 }}
+                    />
+                    {/* max thumb */}
+                    <input
+                      type="range"
+                      min={200}
+                      max={15000}
+                      step={100}
+                      value={cartMax}
+                      onChange={e => setCartMax(Math.max(Number(e.target.value), cartMin + 500))}
+                      className="absolute inset-0 w-full pointer-events-none appearance-none bg-transparent
+                        [&::-webkit-slider-runnable-track]:bg-transparent
+                        [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none
+                        [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5
+                        [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white
+                        [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-[#7B5EE4]
+                        [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:cursor-grab
+                        [&::-moz-range-track]:bg-transparent
+                        [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:h-5
+                        [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:rounded-full
+                        [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:border-2
+                        [&::-moz-range-thumb]:border-[#7B5EE4] [&::-moz-range-thumb]:shadow-md"
+                      style={{ zIndex: 4 }}
+                    />
+                  </div>
+                  {/* Min / Max value pills */}
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-center">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide leading-none mb-1">Min</p>
+                      <p className="text-[14px] font-bold text-slate-800">₹{cartMin.toLocaleString()}</p>
+                    </div>
+                    <div className="w-4 h-px bg-slate-300 shrink-0" />
+                    <div className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-center">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide leading-none mb-1">Max</p>
+                      <p className="text-[14px] font-bold text-slate-800">₹{cartMax.toLocaleString()}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="h-px bg-slate-100" />
+
+              {/* Abandoned — date range */}
+              <div className="space-y-4">
+                <label className="text-[13px] font-bold text-slate-600">Abandoned</label>
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">From</p>
+                    <input
+                      type="date"
+                      value={abandonedFrom}
+                      onChange={e => setAbandonedFrom(e.target.value)}
+                      className="w-full h-11 rounded-lg border border-slate-200 bg-white px-3 text-[13px] font-medium text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-[#7B5EE4]/20 focus:border-[#7B5EE4] transition-colors"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">To</p>
+                    <input
+                      type="date"
+                      value={abandonedTo}
+                      min={abandonedFrom || undefined}
+                      onChange={e => setAbandonedTo(e.target.value)}
+                      className="w-full h-11 rounded-lg border border-slate-200 bg-white px-3 text-[13px] font-medium text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-[#7B5EE4]/20 focus:border-[#7B5EE4] transition-colors"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="h-px bg-slate-100" />
+
+              {/* Priority — toggle chips */}
+              <div className="space-y-4">
+                <label className="text-[13px] font-bold text-slate-600">Priority</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {([
+                    { label: 'Low',    selectedCls: 'bg-green-50 border-green-300 text-green-700',   dot: 'bg-green-500'  },
+                    { label: 'Medium', selectedCls: 'bg-orange-50 border-orange-300 text-orange-700', dot: 'bg-orange-500' },
+                    { label: 'High',   selectedCls: 'bg-red-50 border-red-300 text-red-700',         dot: 'bg-red-500'   },
+                  ] as const).map(({ label, selectedCls, dot }) => {
+                    const isOn = selectedPriorities.includes(label);
+                    return (
+                      <button
+                        key={label}
+                        onClick={() => togglePriority(label)}
+                        className={`h-11 rounded-xl text-[13px] font-bold border-2 transition-all flex items-center justify-center gap-1.5 ${
+                          isOn ? selectedCls : 'bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-100'
+                        }`}
+                      >
+                        <span className={`w-2 h-2 rounded-full shrink-0 ${isOn ? dot : 'bg-slate-300'}`} />
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+            </div>
+            <SheetFooter className="px-6 pb-6 pt-0 border-t border-slate-100">
+              <Button 
+                className="w-full h-12 bg-[#7B5EE4] hover:bg-[#684bd3] text-white font-bold rounded-xl shadow-md text-[14px]"
+                onClick={() => setIsFiltersOpen(false)}
+              >
+                Apply Filters
+              </Button>
+            </SheetFooter>
+          </SheetContent>
+        </Sheet>
 
       </div>
     </div>

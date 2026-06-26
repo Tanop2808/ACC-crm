@@ -1,10 +1,44 @@
+"use client";
+
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { User, Bell, Shield, Key } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 
 export default function SettingsPage() {
+  const [name, setName] = useState("Loading...");
+  const [email, setEmail] = useState("loading@datastraw.in");
+  const [initials, setInitials] = useState("--");
+
+  useEffect(() => {
+    async function fetchUser() {
+      const sessionEmail = typeof window !== 'undefined' ? localStorage.getItem('session_email') : null;
+      const sessionRole = typeof window !== 'undefined' ? localStorage.getItem('session_role') : null;
+      
+      if (sessionEmail) {
+        setEmail(sessionEmail);
+        if (sessionRole === 'agent') {
+          const { data } = await supabase.from('agents').select('name').eq('email', sessionEmail).maybeSingle();
+          if (data?.name) {
+            setName(data.name);
+            setInitials(data.name.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase());
+          } else {
+            const fallbackName = sessionEmail.split('@')[0];
+            setName(fallbackName);
+            setInitials(fallbackName.substring(0, 2).toUpperCase());
+          }
+        } else {
+          setName("Admin User");
+          setInitials("AD");
+        }
+      }
+    }
+    fetchUser();
+  }, []);
+
   return (
     <div className="flex flex-col gap-6 pb-12 h-full max-w-5xl">
       <div>
@@ -19,18 +53,6 @@ export default function SettingsPage() {
             <User className="mr-2 w-4 h-4" />
             Profile
           </Button>
-          <Button variant="ghost" className="w-full justify-start font-bold text-muted-foreground">
-            <Bell className="mr-2 w-4 h-4" />
-            Notifications
-          </Button>
-          <Button variant="ghost" className="w-full justify-start font-bold text-muted-foreground">
-            <Shield className="mr-2 w-4 h-4" />
-            Security
-          </Button>
-          <Button variant="ghost" className="w-full justify-start font-bold text-muted-foreground">
-            <Key className="mr-2 w-4 h-4" />
-            API Keys
-          </Button>
         </div>
 
         {/* Settings Content */}
@@ -43,18 +65,18 @@ export default function SettingsPage() {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="name" className="text-[13px] font-bold">Display Name</Label>
-                <Input id="name" defaultValue="Sarah Jenkins" className="max-w-md font-medium" />
+                <Input id="name" value={name} onChange={(e) => setName(e.target.value)} className="max-w-md font-medium" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="email" className="text-[13px] font-bold">Email Address</Label>
-                <Input id="email" defaultValue="sarah.j@enterprise.com" readOnly className="max-w-md bg-muted/50 text-muted-foreground font-medium" />
+                <Input id="email" value={email} readOnly className="max-w-md bg-muted/50 text-muted-foreground font-medium" />
                 <p className="text-[11px] text-muted-foreground mt-1">Contact your administrator to change your email address.</p>
               </div>
               <div className="space-y-2 pt-2">
                 <Label className="text-[13px] font-bold">Avatar</Label>
                 <div className="flex items-center gap-4">
-                  <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xl border-2 border-primary">
-                    SJ
+                  <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xl border-2 border-primary uppercase">
+                    {initials}
                   </div>
                   <Button variant="outline" size="sm" className="font-bold">Change Avatar</Button>
                 </div>

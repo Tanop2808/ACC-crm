@@ -789,6 +789,28 @@ Deno.serve(async (req) => {
 
 
     // ==========================================
+    // 8.5 ROUND ROBIN ASSIGNMENT
+    // ==========================================
+    console.log("Executing Round Robin Assignment...");
+    try {
+      const { data: agentId, error: assignError } = await supabase.rpc('assign_cart_round_robin', {
+        p_brand_id: integration.brand_id,
+        p_cart_id: newRecord.id,
+        p_provider_table: 'shopify_acc_table'
+      });
+      
+      if (assignError) {
+        console.error("Round Robin Assignment Error:", assignError);
+      } else if (agentId) {
+        console.log("Successfully Assigned Cart to Agent:", agentId);
+      } else {
+        console.log("No agents available for brand, cart remains unassigned.");
+      }
+    } catch (e) {
+      console.error("Failed to execute round robin assignment:", e);
+    }
+
+    // ==========================================
     // 9. SUCCESS RESPONSE
     // ==========================================
 

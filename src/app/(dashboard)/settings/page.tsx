@@ -63,6 +63,7 @@ export default function SettingsPage() {
     if (activeTab === "admin" && isAdminMode) {
       loadAdmins();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, isAdminMode]);
 
   async function loadAdmins() {

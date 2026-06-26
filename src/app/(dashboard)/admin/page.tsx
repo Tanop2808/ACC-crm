@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { getBrands, createBrand, Brand } from "@/services/adminService";
-import { ShoppingBag, Plus, ArrowRight, Layers, UserCheck, Settings2, Loader2, Sparkles } from "lucide-react";
+import { ShoppingBag, Plus, ArrowRight, Layers, UserCheck, Settings2, Loader2, Sparkles, Search } from "lucide-react";
 import Link from "next/link";
 
 export default function AdminDashboard() {
@@ -16,6 +16,7 @@ export default function AdminDashboard() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [newBrandName, setNewBrandName] = useState("");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const fetchBrands = async () => {
     setIsLoading(true);
@@ -56,12 +57,23 @@ export default function AdminDashboard() {
             Manage your brand recovery rules, active integrations, and assigned agents.
           </p>
         </div>
-        <Button 
-          onClick={() => setIsCreateOpen(true)}
-          className="h-10 px-4 font-bold rounded-lg shadow-sm flex items-center gap-2"
-        >
-          <Plus className="w-4 h-4" /> Add Brand
-        </Button>
+        <div className="flex items-center gap-3">
+          <div className="relative w-full md:w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input 
+              placeholder="Search brands..." 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 bg-card shadow-sm border-border h-10"
+            />
+          </div>
+          <Button 
+            onClick={() => setIsCreateOpen(true)}
+            className="h-10 px-4 font-bold rounded-lg shadow-sm flex items-center gap-2 shrink-0"
+          >
+            <Plus className="w-4 h-4" /> Add Brand
+          </Button>
+        </div>
       </div>
 
       {/* Grid of Brands */}
@@ -70,20 +82,26 @@ export default function AdminDashboard() {
           <Loader2 className="w-8 h-8 animate-spin mb-4 text-primary" />
           <p className="font-medium text-[14px]">Syncing Brands from Supabase...</p>
         </div>
-      ) : brands.length === 0 ? (
+      ) : brands.filter(b => b.name.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 ? (
         <div className="flex flex-col items-center justify-center p-12 text-muted-foreground bg-card border border-border border-dashed rounded-2xl min-h-[400px]">
           <ShoppingBag className="w-12 h-12 mb-4 opacity-40 text-primary" />
-          <p className="font-bold text-[16px] text-foreground">No Brands Active</p>
-          <p className="text-[13px] text-muted-foreground mt-1 max-w-[280px] text-center">
-            Create your first brand integration to begin assigning recovery agents.
+          <p className="font-bold text-[16px] text-foreground">
+            {brands.length === 0 ? "No Brands Active" : "No Brands Found"}
           </p>
-          <Button onClick={() => setIsCreateOpen(true)} className="mt-6 font-bold" variant="outline">
-            Create Brand
-          </Button>
+          <p className="text-[13px] text-muted-foreground mt-1 max-w-[280px] text-center">
+            {brands.length === 0 
+              ? "Create your first brand integration to begin assigning recovery agents." 
+              : "No brands match your current search query."}
+          </p>
+          {brands.length === 0 && (
+            <Button onClick={() => setIsCreateOpen(true)} className="mt-6 font-bold" variant="outline">
+              Create Brand
+            </Button>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {brands.map((brand) => (
+          {brands.filter(b => b.name.toLowerCase().includes(searchQuery.toLowerCase())).map((brand) => (
             <Card key={brand.id} className="shadow-sm border-border hover:shadow-md hover:border-primary/30 transition-all group overflow-hidden relative bg-card">
               {/* Subtle top light bar */}
               <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-primary/30 via-primary to-primary/30 opacity-0 group-hover:opacity-100 transition-opacity" />

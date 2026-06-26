@@ -37,7 +37,8 @@ export function AppSidebar() {
       setEmail(storedEmail)
       // Force a live database check to ensure role is completely accurate
       ;(async () => {
-        const { data: roleData } = await (supabase as any).from('user_roles').select('role').eq('email', storedEmail).maybeSingle();
+        const cleanEmail = storedEmail.toLowerCase();
+        const { data: roleData } = await (supabase as any).from('user_roles').select('role').eq('email', cleanEmail).maybeSingle();
         if (roleData) {
           setRole(roleData.role);
           localStorage.setItem('session_role', roleData.role);

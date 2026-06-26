@@ -41,12 +41,30 @@ export interface AssignedCart {
 }
 
 export async function getAgents() {
-  const { data, error } = await supabase.from('agents').select('*');
+  const { data, error } = await (supabase as any).from('agents').select('*');
   if (error) console.error('Error fetching agents:', error);
   return { data, error };
 }
 
 export async function getBrands() {
+  const sessionRole = typeof window !== 'undefined' ? localStorage.getItem('session_role') : null;
+  const sessionEmail = typeof window !== 'undefined' ? localStorage.getItem('session_email') : null;
+
+  if (sessionRole === 'agent' && sessionEmail) {
+    const { data: assignments, error: assignmentError } = await supabase
+      .from('agent_brand_assignments')
+      .select('brand_name')
+      .eq('agent_email', sessionEmail);
+
+    if (assignmentError) {
+      console.error('Error fetching brand assignments:', assignmentError);
+      return { data: [] };
+    }
+
+    const assignedBrands = Array.from(new Set((assignments || []).map((item: any) => item.brand_name).filter(Boolean))).sort();
+    return { data: assignedBrands };
+  }
+
   const { data, error } = await supabase
     .from('abandon_cart_master')
     .select('brand_name')
@@ -62,7 +80,7 @@ export async function getBrands() {
 }
 
 export async function getProviders() {
-  const { data, error } = await supabase.from('providers').select('*');
+  const { data, error } = await (supabase as any).from('providers').select('*');
   if (error) console.error('Error fetching providers:', error);
   return { data, error };
 }
@@ -75,6 +93,31 @@ export async function getAssignedCarts(
 ): Promise<{ data: AssignedCart[] | null, count: number | null, error: any }> {
   let query = supabase.from('abandon_cart_master').select('*', { count: 'exact' });
   
+  // Apply brand filters based on agent assignments
+  const sessionRole = typeof window !== 'undefined' ? localStorage.getItem('session_role') : null;
+  const sessionEmail = typeof window !== 'undefined' ? localStorage.getItem('session_email') : null;
+
+  if (sessionRole === 'agent' && sessionEmail) {
+    const { data: assignments, error: assignmentError } = await supabase
+      .from('agent_brand_assignments')
+      .select('brand_name')
+      .eq('agent_email', sessionEmail);
+
+    if (assignmentError) {
+      console.error('Error fetching brand assignments:', assignmentError);
+      return { data: [], count: 0, error: assignmentError };
+    }
+
+    const assignedBrands = (assignments || []).map((a: any) => a.brand_name).filter(Boolean);
+    
+    if (assignedBrands.length === 0) {
+      // Agent is not assigned to any brands yet
+      return { data: [], count: 0, error: null };
+    }
+
+    query = query.in('brand_name', assignedBrands);
+  }
+
   if (agentId !== 'all') {
     query = query.eq('agent_id', agentId);
   }
@@ -94,7 +137,7 @@ export async function getAssignedCarts(
 
   if (filters.listTab) {
     if (filters.listTab === 'calls') {
-      query = query.eq('assignment_status', 'ASSIGNED').is('call_status', null);
+      query = query.is('call_status', null);
     } else if (filters.listTab === 'in_progress' || filters.listTab === 'in') {
       query = query.not('call_status', 'is', null)
                    .neq('current_status', 'COMPLETED')
@@ -196,6 +239,23 @@ export async function getCartTimeline(cartId: string) {
   return { data, error: null };
 }
 
+// Utility to resolve active table by cart ID
+async function resolveCartTable(cartId: string): Promise<string> {
+  const { data, error } = await (supabase as any)
+    .from('abandon_cart_master')
+    .select('source')
+    .eq('id', cartId)
+    .single();
+
+  if (error || !data || !(data as any).source) {
+    throw new Error('Could not resolve cart source');
+  }
+
+  return (data as any).source.toLowerCase() === 'shopify' 
+    ? 'shopify_acc_table' 
+    : 'shiprocket_acc_table';
+}
+
 export async function updateRecoveryStatus(cartId: string, assignmentId: string, agentId: string, newStatus: string, oldStatus: string | null) {
   let updates: Record<string, any> = { current_status: newStatus };
   if (newStatus === 'follow_up') {
@@ -204,66 +264,78 @@ export async function updateRecoveryStatus(cartId: string, assignmentId: string,
     updates.follow_up = false;
   }
 
-  // Update state table first
-  const { error: updateError } = await supabase
-    .from('abandoned_cart_master')
-    .update(updates as never)
-    .eq('id', cartId);
+  try {
+    const targetTable = await resolveCartTable(cartId);
+
+    // Update state table first
+    const { error: updateError } = await supabase
+      .from(targetTable)
+      .update(updates as never)
+      .eq('id', cartId);
+      
+    if (updateError) {
+      console.error('Error updating status:', updateError);
+      return { error: updateError };
+    }
     
-  if (updateError) {
-    console.error('Error updating status:', updateError);
-    return { error: updateError };
-  }
-  
-  // Insert activity log
-  const { error: logError } = await supabase
-    .from('support_activity_logs')
-    .insert({
-      cart_id: cartId,
-      assignment_id: assignmentId,
-      agent_id: agentId,
-      activity_type: 'STATUS_CHANGED',
-      description: `Status changed to ${newStatus}`,
-      metadata: { old_status: oldStatus, new_status: newStatus }
-    } as never);
+    // Insert activity log
+    const { error: logError } = await supabase
+      .from('support_activity_logs')
+      .insert({
+        cart_id: cartId,
+        assignment_id: assignmentId,
+        agent_id: agentId,
+        activity_type: 'STATUS_CHANGED',
+        description: `Status changed to ${newStatus}`,
+        metadata: { old_status: oldStatus, new_status: newStatus }
+      } as never);
+      
+    if (logError) {
+      console.error('Error logging status change:', logError);
+      return { error: logError };
+    }
     
-  if (logError) {
-    console.error('Error logging status change:', logError);
-    return { error: logError };
+    return { error: null };
+  } catch (err: any) {
+    return { error: err };
   }
-  
-  return { error: null };
 }
 
 export async function addNote(cartId: string, assignmentId: string, agentId: string, noteText: string) {
-  // Update state table first
-  const { error: updateError } = await supabase
-    .from('abandoned_cart_master')
-    .update({ notes: noteText } as never)
-    .eq('id', cartId);
+  try {
+    const targetTable = await resolveCartTable(cartId);
+
+    // Update state table first
+    const { error: updateError } = await supabase
+      .from(targetTable)
+      .update({ notes: noteText } as never)
+      .eq('id', cartId);
+      
+    if (updateError) {
+      console.error('Error adding note to status:', updateError);
+      return { error: updateError };
+    }
     
-  if (updateError) {
-    console.error('Error adding note to status:', updateError);
-    return { error: updateError };
-  }
-  
-  // Insert activity log
-  const { error: logError } = await supabase
-    .from('support_activity_logs')
-    .insert({
-      cart_id: cartId,
-      assignment_id: assignmentId,
-      agent_id: agentId,
-      activity_type: 'NOTE_ADDED',
-      description: noteText
-    } as never);
+    // Insert activity log
+    const { error: logError } = await supabase
+      .from('support_activity_logs')
+      .insert({
+        cart_id: cartId,
+        assignment_id: assignmentId,
+        agent_id: agentId,
+        activity_type: 'NOTE_ADDED',
+        description: noteText
+      } as never);
+      
+    if (logError) {
+      console.error('Error logging note:', logError);
+      return { error: logError };
+    }
     
-  if (logError) {
-    console.error('Error logging note:', logError);
-    return { error: logError };
+    return { error: null };
+  } catch (err: any) {
+    return { error: err };
   }
-  
-  return { error: null };
 }
 
 export async function updateStatusAndNote(cartId: string, assignmentId: string, agentId: string, newStatus: string, oldStatus: string | null, noteText: string, callStatus?: string) {
@@ -276,67 +348,79 @@ export async function updateStatusAndNote(cartId: string, assignmentId: string, 
     updates.follow_up = false;
   }
 
-  // Update state table first
-  const { error: updateError } = await supabase
-    .from('abandoned_cart_master')
-    .update(updates as never)
-    .eq('cart_id', cartId);
+  try {
+    const targetTable = await resolveCartTable(cartId);
+
+    // Update state table first
+    const { error: updateError } = await supabase
+      .from(targetTable)
+      .update(updates as never)
+      .eq('id', cartId);
+      
+    if (updateError) {
+      console.error('Error updating status and note:', updateError);
+      return { error: updateError };
+    }
     
-  if (updateError) {
-    console.error('Error updating status and note:', updateError);
-    return { error: updateError };
-  }
-  
-  // Insert a single combined activity log
-  const { error: logError } = await supabase
-    .from('support_activity_logs')
-    .insert({
-      cart_id: cartId,
-      assignment_id: assignmentId,
-      agent_id: agentId,
-      activity_type: 'STATUS_AND_NOTE',
-      description: `Status changed to ${newStatus}. Note: ${noteText}`,
-      metadata: { old_status: oldStatus, new_status: newStatus, note: noteText }
-    } as never);
+    // Insert a single combined activity log
+    const { error: logError } = await supabase
+      .from('support_activity_logs')
+      .insert({
+        cart_id: cartId,
+        assignment_id: assignmentId,
+        agent_id: agentId,
+        activity_type: 'STATUS_AND_NOTE',
+        description: `Status changed to ${newStatus}. Note: ${noteText}`,
+        metadata: { old_status: oldStatus, new_status: newStatus, note: noteText }
+      } as never);
+      
+    if (logError) {
+      console.error('Error logging combined status and note:', logError);
+      return { error: logError };
+    }
     
-  if (logError) {
-    console.error('Error logging combined status and note:', logError);
-    return { error: logError };
+    return { error: null };
+  } catch (err: any) {
+    return { error: err };
   }
-  
-  return { error: null };
 }
 
 export async function scheduleFollowUp(cartId: string, assignmentId: string, agentId: string, followUpTime: string) {
-  // Update state table first
-  const { error: updateError } = await supabase
-    .from('abandoned_cart_master')
-    .update({ 
-      follow_up: true,
-      follow_up_at: followUpTime 
-    } as never)
-    .eq('id', cartId);
+  try {
+    const targetTable = await resolveCartTable(cartId);
+
+    // Update state table first
+    const { error: updateError } = await supabase
+      .from(targetTable)
+      .update({ 
+        follow_up: true,
+        follow_up_at: followUpTime 
+      } as never)
+      .eq('id', cartId);
+      
+    if (updateError) {
+      console.error('Error scheduling follow-up:', updateError);
+      return { error: updateError };
+    }
     
-  if (updateError) {
-    console.error('Error scheduling follow-up:', updateError);
-    return { error: updateError };
-  }
-  
-  // Insert activity log
-  const { error: logError } = await supabase
-    .from('support_activity_logs')
-    .insert({
-      cart_id: cartId,
-      assignment_id: assignmentId,
-      agent_id: agentId,
-      activity_type: 'FOLLOW_UP_CREATED',
-      description: 'Follow up scheduled'
-    } as never);
+    // Insert activity log
+    const { error: logError } = await supabase
+      .from('support_activity_logs')
+      .insert({
+        cart_id: cartId,
+        assignment_id: assignmentId,
+        agent_id: agentId,
+        activity_type: 'FOLLOW_UP_CREATED',
+        description: 'Follow up scheduled'
+      } as never);
+      
+    if (logError) {
+      console.error('Error logging follow-up:', logError);
+      return { error: logError };
+    }
     
-  if (logError) {
-    console.error('Error logging follow-up:', logError);
-    return { error: logError };
+    return { error: null };
+  } catch (err: any) {
+    return { error: err };
   }
-  
-  return { error: null };
 }

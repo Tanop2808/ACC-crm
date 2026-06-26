@@ -1,8 +1,11 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
+import { Loader2 } from "lucide-react";
 
 export default function DashboardLayout({
   children,
@@ -10,7 +13,43 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+
+  useEffect(() => {
+    const email = localStorage.getItem("session_email");
+    if (!email) {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (!session) {
+          router.push("/login");
+        } else {
+          localStorage.setItem("session_email", session.user.email || "");
+          if (session.user.email) {
+            const cleanEmail = session.user.email.toLowerCase();
+            (supabase as any).from("user_roles").select("role").eq("email", cleanEmail).maybeSingle().then(({ data }: any) => {
+              if (data) localStorage.setItem("session_role", data.role);
+              setIsCheckingAuth(false);
+            });
+          } else {
+            setIsCheckingAuth(false);
+          }
+        }
+      });
+    } else {
+      setIsCheckingAuth(false);
+    }
+  }, [router, pathname]);
+
   const isAssignedQueue = pathname === "/agent/recovery";
+
+  if (isCheckingAuth) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen w-full bg-background text-muted-foreground">
+        <Loader2 className="w-8 h-8 animate-spin mb-4 text-primary" />
+        <p className="font-medium text-[13px]">Authenticating Operator...</p>
+      </div>
+    );
+  }
 
   return (
     <SidebarProvider>

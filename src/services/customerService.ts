@@ -3,10 +3,37 @@ import { CustomerRecovery } from '../types/database';
 
 export async function getCustomers(): Promise<{ data: CustomerRecovery[] | null; error: Error | null }> {
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from('customer_recovery_view')
       .select('*')
       .order('updated_at', { ascending: false });
+
+    // Apply brand filters based on agent assignments
+    const sessionRole = typeof window !== 'undefined' ? localStorage.getItem('session_role') : null;
+    const sessionEmail = typeof window !== 'undefined' ? localStorage.getItem('session_email') : null;
+
+    if (sessionRole === 'agent' && sessionEmail) {
+      const { data: assignments, error: assignmentError } = await supabase
+        .from('agent_brand_assignments')
+        .select('brand_name')
+        .eq('agent_email', sessionEmail);
+
+      if (assignmentError) {
+        console.error('Error fetching brand assignments:', assignmentError);
+        return { data: [], error: new Error(assignmentError.message) };
+      }
+
+      const assignedBrands = (assignments || []).map((a: any) => a.brand_name).filter(Boolean);
+      
+      if (assignedBrands.length === 0) {
+        // Agent is not assigned to any brands yet
+        return { data: [], error: null };
+      }
+
+      query = query.in('source', assignedBrands);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error('Supabase fetch error:', error);

@@ -558,7 +558,7 @@ export default function AbandonedCartsPage() {
                   <div className="flex items-center gap-3 mb-5 px-1">
                     <Select 
                       value={pendingRecoveryStatus || (['follow_up', 'converted', 'lost'].includes(selectedCustomer.current_status || '') ? selectedCustomer.current_status : '') || ''} 
-                      onValueChange={setPendingRecoveryStatus}
+                      onValueChange={(val) => setPendingRecoveryStatus(val || "")}
                     >
                       <SelectTrigger className="w-[180px] bg-white border-slate-200 text-slate-700 text-[13px] font-bold">
                         <SelectValue placeholder="Select Status" />
@@ -823,7 +823,7 @@ export default function AbandonedCartsPage() {
                       <h3 className="font-bold text-[16px] text-slate-900 mb-2">Internal Notes</h3>
                       
                       <div className="flex flex-col gap-3 mb-6 bg-slate-50 p-4 rounded-xl border border-slate-100">
-                        <Select value={noteCallStatus} onValueChange={setNoteCallStatus}>
+                        <Select value={noteCallStatus} onValueChange={(val) => setNoteCallStatus(val || "")}>
                           <SelectTrigger className="w-full bg-white border-slate-200 text-slate-700 text-[13px]">
                             <SelectValue placeholder="Select Call Status" />
                           </SelectTrigger>

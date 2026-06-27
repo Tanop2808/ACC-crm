@@ -306,7 +306,7 @@ export async function addNote(cartId: string, assignmentId: string, agentId: str
     const targetTable = await resolveCartTable(cartId);
 
     const { data: cartData } = await supabase.from(targetTable).select('activity_logs').eq('id', cartId).single();
-    const currentLogs = Array.isArray(cartData?.activity_logs) ? cartData.activity_logs : [];
+    const currentLogs = Array.isArray((cartData as any)?.activity_logs) ? (cartData as any).activity_logs : [];
     const newLog = {
       type: 'note',
       content: noteText,
@@ -360,7 +360,7 @@ export async function updateStatusAndNote(cartId: string, assignmentId: string, 
     const targetTable = await resolveCartTable(cartId);
 
     const { data: cartData } = await supabase.from(targetTable).select('activity_logs').eq('id', cartId).single();
-    const currentLogs = Array.isArray(cartData?.activity_logs) ? cartData.activity_logs : [];
+    const currentLogs = Array.isArray((cartData as any)?.activity_logs) ? (cartData as any).activity_logs : [];
     
     let activityText = `Status changed to ${newStatus.replace(/_/g, ' ')}`;
     if (noteText) {

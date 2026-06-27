@@ -253,7 +253,9 @@ export default function AbandonedCartsPage() {
 
   const parseDateUTC = (dateStr: string) => {
     let safe = dateStr;
-    if (!safe.includes('Z') && !safe.match(/[+-]\d{2}:?\d{2}$/)) safe += 'Z';
+    if (!safe.includes('Z') && !safe.match(/[+-]\d{2}:?\d{2}$/)) {
+      safe += '+05:30'; // Shiprocket sends dates in IST without timezone info
+    }
     return new Date(safe);
   };
 

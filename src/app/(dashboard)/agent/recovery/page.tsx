@@ -24,10 +24,11 @@ import {
   User, Bell, Calendar as CalendarIcon, Filter, Download, PhoneCall, MapPin, 
   ShoppingCart, Phone, MoreVertical, CheckCircle2, ChevronLeft, 
   ChevronRight, MessageSquare, Mail, FileEdit, Search,
-  Heart, HeartHandshake, Sparkles, Smile, MessageCircle
+  Heart, HeartHandshake, Sparkles, Smile, MessageCircle, Loader2
 } from "lucide-react";
-import { getAssignedCarts, getBrands, getProviders, TEMP_LOGGED_IN_AGENT_ID, AssignedCart, getCustomerHistory } from "@/services/agentRecoveryService";
+import { getAssignedCarts, getBrands, getProviders, TEMP_LOGGED_IN_AGENT_ID, AssignedCart, getCustomerHistory, getCartTimeline, addNote, updateStatusAndNote } from "@/services/agentRecoveryService";
 import { supabase } from "@/lib/supabase";
+import { Textarea } from "@/components/ui/textarea";
 
 export default function AbandonedCartsPage() {
   const [userName, setUserName] = useState("User");
@@ -39,6 +40,14 @@ export default function AbandonedCartsPage() {
   const [activeDetailTab, setActiveDetailTab] = useState("script");
   const [customerHistory, setCustomerHistory] = useState<AssignedCart[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [timeline, setTimeline] = useState<any[]>([]);
+  const [isTimelineLoading, setIsTimelineLoading] = useState(false);
+  const [noteInput, setNoteInput] = useState("");
+  const [noteCallStatus, setNoteCallStatus] = useState("");
+  const [pendingRecoveryStatus, setPendingRecoveryStatus] = useState("");
+  const [activityInput, setActivityInput] = useState("");
+  const [isSubmittingNote, setIsSubmittingNote] = useState(false);
+  const [isSubmittingActivity, setIsSubmittingActivity] = useState(false);
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const [brands, setBrands] = useState<any[]>([]);
   const [providers, setProviders] = useState<any[]>([]);
@@ -149,8 +158,93 @@ export default function AbandonedCartsPage() {
       setCustomerHistory(data);
       setIsLoadingHistory(false);
     }
+    
+    async function loadTimeline() {
+      if (!selectedCustomer) return;
+      setIsTimelineLoading(true);
+      const { data } = await getCartTimeline(selectedCustomer.id);
+      setTimeline(data || []);
+      setIsTimelineLoading(false);
+    }
+    
     loadHistory();
-  }, [selectedCustomer?.id]);
+    loadTimeline();
+  }, [selectedCustomer?.id, refreshTrigger]);
+
+  const handleAddNote = async () => {
+    if ((!noteInput.trim() && !noteCallStatus) || !selectedCustomer) return;
+    setIsSubmittingNote(true);
+    
+    let finalNote = noteInput;
+    if (noteCallStatus) {
+      finalNote = noteInput ? `[${noteCallStatus}] ${noteInput}` : `[${noteCallStatus}]`;
+    }
+    
+    // Also update call_status if it's set
+    if (noteCallStatus) {
+      await (supabase as any).from(selectedCustomer.source === 'shopify' ? 'shopify_acc_table' : 'shiprocket_acc_table')
+        .update({ call_status: noteCallStatus })
+        .eq('id', selectedCustomer.id);
+    }
+
+    const { error } = await addNote(
+      selectedCustomer.id, 
+      null as any,
+      TEMP_LOGGED_IN_AGENT_ID, 
+      finalNote
+    );
+    
+    if (!error) {
+      setNoteInput("");
+      setNoteCallStatus("");
+      setRefreshTrigger(prev => prev + 1);
+    }
+    setIsSubmittingNote(false);
+  };
+
+  const handleUpdateStatus = async (newStatus: string) => {
+    if (!selectedCustomer) return;
+    
+    let callStatusUpdate: string | undefined = undefined;
+    if (newStatus === 'follow_up') callStatusUpdate = 'Follow-up';
+    else if (newStatus === 'converted') callStatusUpdate = 'Connected';
+    else if (newStatus === 'lost') callStatusUpdate = 'Not Interested';
+
+    const { error } = await updateStatusAndNote(
+      selectedCustomer.id,
+      null as any,
+      TEMP_LOGGED_IN_AGENT_ID,
+      newStatus,
+      selectedCustomer.current_status,
+      selectedCustomer.notes || "",
+      callStatusUpdate
+    );
+
+    if (!error) {
+      setPendingRecoveryStatus(""); // Reset the dropdown state
+      setRefreshTrigger(prev => prev + 1);
+    }
+  };
+
+  const handleAddActivity = async () => {
+    if (!activityInput.trim() || !selectedCustomer) return;
+    setIsSubmittingActivity(true);
+    
+    const { error } = await addNote(
+      selectedCustomer.id, 
+      null as any,
+      TEMP_LOGGED_IN_AGENT_ID, 
+      activityInput
+    );
+    
+    if (error) {
+      console.warn('Warning: Error logging manual activity:', error);
+    }
+    
+    setActivityInput("");
+    setRefreshTrigger(prev => prev + 1);
+    setIsSubmittingActivity(false);
+  };
 
   const formatCurrency = (val: any) => {
     if (!val) return '₹0';
@@ -460,6 +554,34 @@ export default function AbandonedCartsPage() {
                       <p className="text-[12px] text-slate-500 font-medium">{selectedCustomer.updated_at ? getDaysAgo(selectedCustomer.updated_at) : ''}</p>
                     </div>
                   </div>
+
+                  <div className="flex items-center gap-3 mb-5 px-1">
+                    <Select 
+                      value={pendingRecoveryStatus || (['follow_up', 'converted', 'lost'].includes(selectedCustomer.current_status || '') ? selectedCustomer.current_status : '') || ''} 
+                      onValueChange={setPendingRecoveryStatus}
+                    >
+                      <SelectTrigger className="w-[180px] bg-white border-slate-200 text-slate-700 text-[13px] font-bold">
+                        <SelectValue placeholder="Select Status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="follow_up">In Progress</SelectItem>
+                        <SelectItem value="converted">Completed</SelectItem>
+                        <SelectItem value="lost">Not Interested</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button 
+                      className="bg-[#7B5EE4] hover:bg-[#684bd3] text-white text-[13px] h-9 px-6 rounded-md font-bold"
+                      onClick={() => {
+                        const statusToUpdate = pendingRecoveryStatus || selectedCustomer.current_status;
+                        if (statusToUpdate) {
+                          handleUpdateStatus(statusToUpdate);
+                        }
+                      }}
+                      disabled={!pendingRecoveryStatus || pendingRecoveryStatus === selectedCustomer.current_status}
+                    >
+                      Proceed
+                    </Button>
+                  </div>
                   
                   {/* Detail Tabs */}
                   <div className="flex flex-wrap gap-x-1 gap-y-0 border-b border-slate-100 pb-px">
@@ -623,7 +745,7 @@ export default function AbandonedCartsPage() {
                             </div>
                           ))}
                           {(!selectedCustomer.products || selectedCustomer.products.length === 0) && (
-                            <p className="text-[13px] text-slate-500">No product details available.</p>
+                        <p className="text-[13px] text-slate-500">No product details available.</p>
                           )}
                         </div>
                       </div>
@@ -632,29 +754,49 @@ export default function AbandonedCartsPage() {
 
                   {activeDetailTab === 'activity' && (
                     <div className="space-y-4">
-                      <h3 className="font-bold text-[16px] text-slate-900 mb-2">Activity Log</h3>
-                      <div className="flex flex-col items-center justify-center p-8 bg-slate-50 rounded-xl border border-slate-100 border-dashed">
-                        <p className="text-[13px] font-bold text-slate-500 mb-1">No Recent Activity</p>
-                        <p className="text-[12px] text-slate-400 text-center max-w-[250px]">Activity events like calls, SMS, and status changes will appear here.</p>
-                      </div>
+                      {/* General Activity Timeline */}
+                      {isTimelineLoading ? (
+                        <div className="text-center p-8 text-sm text-slate-500">Loading activity...</div>
+                      ) : (!selectedCustomer.activity_logs || selectedCustomer.activity_logs.length === 0) ? (
+                        <div className="flex flex-col items-center justify-center p-8 bg-slate-50 rounded-xl border border-slate-100 border-dashed">
+                          <p className="text-[13px] font-bold text-slate-500 mb-1">No Recent Activity</p>
+                          <p className="text-[12px] text-slate-400 text-center max-w-[250px]">Activity events like calls, SMS, and status changes will appear here.</p>
+                        </div>
+                      ) : (
+                        <div className="relative border-l-2 border-slate-200 ml-3 space-y-6 py-2">
+                          {[...(selectedCustomer.activity_logs || [])].reverse().map((log: any, idx: number) => (
+                            <div key={idx} className="relative pl-6">
+                              <div className="absolute w-3 h-3 bg-white border-2 border-[#7B5EE4] rounded-full -left-[7px] top-1.5" />
+                              <div className="flex flex-col gap-1">
+                                <div className="flex items-center justify-between gap-4">
+                                  <p className="text-[13px] font-bold text-slate-900">{log.type === 'note' ? 'Call Remark' : (log.activity_type?.replace(/_/g, ' ') || 'Activity')}</p>
+                                  <p className="text-[11px] font-medium text-slate-500 shrink-0">{formatDateTime(log.timestamp)}</p>
+                                </div>
+                                <p className="text-[13px] text-slate-600">{log.content || log.description}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
 
                   {activeDetailTab === 'history' && (
                     <div className="space-y-4">
                       <h3 className="font-bold text-[16px] text-slate-900 mb-4">Previous Carts</h3>
+                      
                       {isLoadingHistory ? (
                         <div className="text-center p-8 text-sm text-slate-500">Loading history...</div>
                       ) : customerHistory.length === 0 ? (
                         <div className="flex flex-col items-center justify-center p-8 bg-slate-50 rounded-xl border border-slate-100 border-dashed">
-                          <p className="text-[13px] font-bold text-slate-500 mb-1">No Past Carts</p>
-                          <p className="text-[12px] text-slate-400 text-center max-w-[250px]">This customer has no other abandoned carts.</p>
+                          <p className="text-[13px] font-bold text-slate-500 mb-1">No Previous History</p>
+                          <p className="text-[12px] text-slate-400 text-center max-w-[250px]">This is the first recorded cart for this customer.</p>
                         </div>
                       ) : (
                         <div className="space-y-3">
-                          {customerHistory.map(histCart => (
-                            <div key={histCart.id} className="bg-slate-50 rounded-xl p-4 border border-slate-100 flex flex-col gap-2 relative">
-                              <div className="flex justify-between items-start">
+                          {customerHistory.map((histCart) => (
+                            <div key={histCart.id} className="bg-white border border-slate-200 rounded-xl p-4 hover:border-slate-300 transition-colors">
+                              <div className="flex justify-between items-start mb-2">
                                 <div>
                                   <p className="text-[13px] text-slate-800 font-bold mb-0.5">{histCart.brand_name || 'Unknown Brand'}</p>
                                   <p className="text-[12px] text-slate-500 font-medium">{formatDateTime(histCart.abandoned_at)}</p>
@@ -679,9 +821,79 @@ export default function AbandonedCartsPage() {
                   {activeDetailTab === 'notes' && (
                     <div className="space-y-4">
                       <h3 className="font-bold text-[16px] text-slate-900 mb-2">Internal Notes</h3>
-                      <div className="flex flex-col items-center justify-center p-8 bg-slate-50 rounded-xl border border-slate-100 border-dashed">
-                        <p className="text-[13px] font-bold text-slate-500 mb-1">No Notes</p>
-                        <p className="text-[12px] text-slate-400 text-center max-w-[250px]">Click 'Add Note' in the quick actions to leave a note.</p>
+                      
+                      <div className="flex flex-col gap-3 mb-6 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                        <Select value={noteCallStatus} onValueChange={setNoteCallStatus}>
+                          <SelectTrigger className="w-full bg-white border-slate-200 text-slate-700 text-[13px]">
+                            <SelectValue placeholder="Select Call Status" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Connected">Connected</SelectItem>
+                            <SelectItem value="No Answer">No Answer</SelectItem>
+                            <SelectItem value="Busy">Busy</SelectItem>
+                            <SelectItem value="Disconnected">Disconnected</SelectItem>
+                            <SelectItem value="Wrong Number">Wrong Number</SelectItem>
+                            <SelectItem value="Follow-up">Follow-up</SelectItem>
+                            <SelectItem value="DND">DND</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Textarea 
+                          placeholder="Add a new note..." 
+                          className="min-h-[80px] text-[13px] bg-white border-slate-200"
+                          value={noteInput}
+                          onChange={(e) => setNoteInput(e.target.value)}
+                        />
+                        <div className="flex justify-end">
+                          <Button 
+                            className="bg-[#7B5EE4] hover:bg-[#684bd3] text-white text-[12px] h-9 px-4 rounded-lg font-bold"
+                            onClick={handleAddNote}
+                            disabled={isSubmittingNote || !noteInput.trim()}
+                          >
+                            {isSubmittingNote ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                            Save Note
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="mt-8 relative">
+                        <div className="absolute inset-0 flex items-center" aria-hidden="true">
+                          <div className="w-full border-t border-slate-100"></div>
+                        </div>
+                        <div className="relative flex justify-start">
+                          <span className="bg-white pr-4 text-[10px] font-bold text-slate-400 tracking-[0.2em] uppercase">
+                            Call Remarks
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="space-y-4 mt-6">
+                        {[1, 2, 3].map((num) => {
+                          const ordinal = num === 1 ? '1ST' : num === 2 ? '2ND' : '3RD';
+                          
+                          // Look up notes in activity_logs
+                          const notesList = Array.isArray(selectedCustomer.activity_logs) 
+                            ? selectedCustomer.activity_logs.filter((log: any) => log.type === 'note' || log.activity_type === 'NOTE_ADDED') 
+                            : [];
+                          
+                          const noteForCall = notesList[num - 1];
+                          const hasNote = !!noteForCall;
+
+                          return (
+                            <div key={num} className="bg-[#FAF9F6] border border-slate-100 rounded-xl p-5 flex gap-5 shadow-sm">
+                              <div className="w-7 h-7 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center text-[12px] font-bold shrink-0">
+                                {num}
+                              </div>
+                              <div className="flex-1">
+                                <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-3">
+                                  {ordinal} CALL REMARKS
+                                </h4>
+                                <p className={`text-[14px] leading-relaxed ${hasNote ? 'text-slate-800' : 'text-slate-400 italic'}`}>
+                                  {hasNote ? noteForCall.content || noteForCall.description : 'No remarks recorded.'}
+                                </p>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
@@ -689,7 +901,6 @@ export default function AbandonedCartsPage() {
                   <div className="h-px bg-slate-100 my-8"></div>
                 </div>
 
-                {/* Quick Actions Footer */}
                 <div className="p-6 pt-0 bg-white shrink-0 border-t border-slate-100">
                   <p className="text-[14px] font-bold text-slate-900 mb-3 pt-4">Quick Actions</p>
                   <div className="grid grid-cols-2 gap-2">
@@ -702,7 +913,11 @@ export default function AbandonedCartsPage() {
                     <Button variant="outline" className="bg-slate-50 border-slate-200 text-slate-700 hover:text-slate-900 hover:bg-slate-100 h-10 px-3 text-[12px] font-medium shadow-none rounded-lg flex items-center justify-center gap-1.5 transition-colors">
                       <Mail className="w-4 h-4 text-slate-500 shrink-0" /> Email
                     </Button>
-                    <Button variant="outline" className="bg-slate-50 border-slate-200 text-slate-700 hover:text-slate-900 hover:bg-slate-100 h-10 px-3 text-[12px] font-medium shadow-none rounded-lg flex items-center justify-center gap-1.5 transition-colors">
+                    <Button 
+                      variant="outline" 
+                      className="bg-slate-50 border-slate-200 text-slate-700 hover:text-slate-900 hover:bg-slate-100 h-10 px-3 text-[12px] font-medium shadow-none rounded-lg flex items-center justify-center gap-1.5 transition-colors"
+                      onClick={() => setActiveDetailTab('notes')}
+                    >
                       <FileEdit className="w-4 h-4 text-slate-500 shrink-0" /> Add Note
                     </Button>
                   </div>

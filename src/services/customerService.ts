@@ -6,7 +6,7 @@ export async function getCustomers(): Promise<{ data: CustomerRecovery[] | null;
     let query = supabase
       .from('customer_recovery_view')
       .select('*')
-      .order('updated_at', { ascending: false });
+      .order('abandoned_at', { ascending: false });
 
     // Apply brand filters based on agent assignments
     const sessionRole = typeof window !== 'undefined' ? localStorage.getItem('session_role') : null;

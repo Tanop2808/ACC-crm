@@ -89,7 +89,7 @@ export async function getAssignedCarts(
   agentId: string,
   page: number = 1,
   limit: number = 50,
-  filters: { brand_name?: string; source?: string; current_status?: string; call_status?: string, listTab?: string } = {}
+  filters: { brand_name?: string; source?: string; current_status?: string; call_status?: string, listTab?: string, searchQuery?: string, cartMin?: number, cartMax?: number, abandonedFrom?: string, abandonedTo?: string, selectedPriorities?: string[] } = {}
 ): Promise<{ data: AssignedCart[] | null, count: number | null, error: any }> {
   let query = supabase.from('abandon_cart_master').select('*', { count: 'exact' });
   

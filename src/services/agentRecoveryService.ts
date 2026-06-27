@@ -149,6 +149,44 @@ export async function getAssignedCarts(
     }
   }
 
+  if (filters.searchQuery) {
+    query = query.or(`customer_name.ilike.%${filters.searchQuery}%,customer_email.ilike.%${filters.searchQuery}%,customer_phone.ilike.%${filters.searchQuery}%`);
+  }
+
+  if (filters.cartMin !== undefined) {
+    query = query.gte('cart_value', filters.cartMin);
+  }
+  
+  if (filters.cartMax !== undefined) {
+    query = query.lte('cart_value', filters.cartMax);
+  }
+
+  if (filters.abandonedFrom) {
+    query = query.gte('abandoned_at', filters.abandonedFrom);
+  }
+
+  if (filters.abandonedTo) {
+    // Append time to include the entire day for the 'To' date
+    query = query.lte('abandoned_at', `${filters.abandonedTo}T23:59:59.999Z`);
+  }
+
+  if (filters.selectedPriorities && filters.selectedPriorities.length > 0) {
+    // Priority is derived from cart_value: High >= 3000, Medium >= 1500 && < 3000, Low < 1500
+    const priorityConditions: string[] = [];
+    if (filters.selectedPriorities.includes('High')) {
+      priorityConditions.push(`cart_value.gte.3000`);
+    }
+    if (filters.selectedPriorities.includes('Medium')) {
+      priorityConditions.push(`and(cart_value.gte.1500,cart_value.lt.3000)`);
+    }
+    if (filters.selectedPriorities.includes('Low')) {
+      priorityConditions.push(`cart_value.lt.1500`);
+    }
+    if (priorityConditions.length > 0) {
+      query = query.or(priorityConditions.join(','));
+    }
+  }
+
   query = query.order('updated_at', { ascending: false });
 
   const from = (page - 1) * limit;

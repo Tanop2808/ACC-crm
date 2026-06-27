@@ -45,6 +45,7 @@ export default function AbandonedCartsPage() {
   const [noteInput, setNoteInput] = useState("");
   const [noteCallStatus, setNoteCallStatus] = useState("");
   const [pendingRecoveryStatus, setPendingRecoveryStatus] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [activityInput, setActivityInput] = useState("");
   const [isSubmittingNote, setIsSubmittingNote] = useState(false);
   const [isSubmittingActivity, setIsSubmittingActivity] = useState(false);
@@ -84,9 +85,9 @@ export default function AbandonedCartsPage() {
     document.body.removeChild(link);
   };
   
-  async function fetchCarts(page: number, tab: string, brand: string) {
+  async function fetchCarts(page: number, tab: string, brand: string, filtersState?: any) {
     setIsLoading(true);
-    const filters = { listTab: tab, brand_name: brand };
+    const filters = { listTab: tab, brand_name: brand, ...filtersState };
     const { data, count } = await getAssignedCarts('all', page, pageSize, filters);
     
     if (data) {
@@ -141,8 +142,18 @@ export default function AbandonedCartsPage() {
   }, []);
 
   useEffect(() => {
-    fetchCarts(currentPage, activeListTab, selectedBrand);
-  }, [currentPage, activeListTab, selectedBrand, refreshTrigger]);
+    const handler = setTimeout(() => {
+      fetchCarts(currentPage, activeListTab, selectedBrand, {
+        searchQuery,
+        cartMin,
+        cartMax,
+        abandonedFrom,
+        abandonedTo,
+        selectedPriorities
+      });
+    }, 400);
+    return () => clearTimeout(handler);
+  }, [currentPage, activeListTab, selectedBrand, refreshTrigger, searchQuery, cartMin, cartMax, abandonedFrom, abandonedTo, selectedPriorities]);
 
   const selectedCustomer = customers.find(c => c.id === selectedCartId) || customers[0];
 
@@ -950,6 +961,8 @@ export default function AbandonedCartsPage() {
                 <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <Input 
                   placeholder="Search filters" 
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-9 h-11 bg-white border-slate-200 rounded-lg text-[13px] shadow-sm font-medium" 
                 />
               </div>

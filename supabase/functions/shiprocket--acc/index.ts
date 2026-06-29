@@ -192,6 +192,28 @@ Deno.serve(async (req: Request) => {
         throw updateError;
       }
 
+      // ==========================================
+      // 6.5 LAZY ASSIGNMENT FOR UNASSIGNED CARTS
+      // ==========================================
+      if (!existingRecord.agent_id) {
+        console.log("Lazy Assigning Unassigned Existing Cart...");
+        try {
+          const { data: agentId, error: assignError } = await supabase.rpc('assign_cart_round_robin', {
+            p_brand_id: integration.brand_id,
+            p_cart_id: updatedData.id,
+            p_provider_table: 'shiprocket_acc_table'
+          });
+          
+          if (assignError) {
+            console.error("Round Robin Assignment Error:", assignError);
+          } else if (agentId) {
+            console.log("Successfully Lazy Assigned Cart to Agent:", agentId);
+          }
+        } catch (e) {
+          console.error("Failed to execute lazy round robin assignment:", e);
+        }
+      }
+
       return new Response(
         JSON.stringify({
           success: true,

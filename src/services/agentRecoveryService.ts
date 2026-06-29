@@ -100,7 +100,7 @@ export async function getAssignedCarts(
   if (sessionRole === 'agent' && sessionEmail) {
     const { data: assignments, error: assignmentError } = await supabase
       .from('agent_brand_assignments')
-      .select('brand_name')
+      .select('brand_name, agent_id')
       .eq('agent_email', sessionEmail);
 
     if (assignmentError) {
@@ -109,13 +109,15 @@ export async function getAssignedCarts(
     }
 
     const assignedBrands = (assignments || []).map((a: any) => a.brand_name).filter(Boolean);
+    const assignedAgentId = assignments && assignments.length > 0 ? assignments[0].agent_id : null;
     
-    if (assignedBrands.length === 0) {
+    if (assignedBrands.length === 0 || !assignedAgentId) {
       // Agent is not assigned to any brands yet
       return { data: [], count: 0, error: null };
     }
 
     query = query.in('brand_name', assignedBrands);
+    query = query.eq('agent_id', assignedAgentId);
   }
 
   if (agentId !== 'all') {

@@ -5,39 +5,72 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Trophy, TrendingUp, Target, Loader2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function AgentPerformancePage() {
   const [performers, setPerformers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [floorAvg, setFloorAvg] = useState("0.0%");
+  const [timeFilter, setTimeFilter] = useState("all_time");
 
   useEffect(() => {
     async function fetchAgents() {
-      const { data } = await (supabase as any).from('agents').select('name, email');
+      setIsLoading(true);
+      // Fetch real data from our new RPC function with time filter
+      const { data, error } = await supabase.rpc('get_agent_performance', { p_time_filter: timeFilter });
+      
       if (data && data.length > 0) {
-        const mapped = data.map((agent: any, i: number) => {
-          // Generate semi-realistic dummy stats based on their index so it looks populated with actual team members
-          const baseCarts = 100 - (i * 10);
-          const baseConv = 30 - (i * 2);
-          const baseRev = 40000 - (i * 5000);
+        let globalTotal = 0;
+        let globalRecovered = 0;
+
+        let filteredData = data;
+        const sessionRole = typeof window !== 'undefined' ? localStorage.getItem('session_role') : null;
+        const sessionEmail = typeof window !== 'undefined' ? localStorage.getItem('session_email') : null;
+
+        if (sessionRole === 'agent' && sessionEmail) {
+          filteredData = data.filter((a: any) => a.agent_email === sessionEmail);
+        }
+
+        const mapped = filteredData.map((agent: any, i: number) => {
+          const totalCarts = parseInt(agent.total_carts) || 0;
+          const recoveredCarts = parseInt(agent.recovered_carts) || 0;
+          const recoveredRevenue = parseFloat(agent.recovered_revenue) || 0;
+          const convRate = totalCarts > 0 ? ((recoveredCarts / totalCarts) * 100).toFixed(1) : "0.0";
+          
+          globalTotal += totalCarts;
+          globalRecovered += recoveredCarts;
+
           return {
             rank: i + 1,
-            name: agent.name || agent.email.split('@')[0],
-            conv: `${baseConv > 0 ? baseConv : 12}.${Math.floor(Math.random() * 9)}%`,
-            rev: `$${(baseRev > 0 ? baseRev : 5000).toLocaleString()}`,
-            carts: baseCarts > 0 ? baseCarts : 24,
+            name: agent.agent_name || agent.agent_email.split('@')[0],
+            conv: `${convRate}%`,
+            rev: `₹${recoveredRevenue.toLocaleString()}`,
+            carts: totalCarts,
           }
         });
+        
         setPerformers(mapped);
+        
+        const avg = globalTotal > 0 ? ((globalRecovered / globalTotal) * 100).toFixed(1) : "0.0";
+        setFloorAvg(`${avg}%`);
       } else {
         // Fallback if no agents exist
         setPerformers([
-           { rank: 1, name: "No agents yet", conv: "0%", rev: "$0", carts: 0 }
+           { rank: 1, name: "No data available", conv: "0%", rev: "₹0", carts: 0 }
         ]);
+        setFloorAvg("0.0%");
       }
       setIsLoading(false);
     }
     fetchAgents();
-  }, []);
+  }, [timeFilter]);
+
+  const timeFilterLabels: Record<string, string> = {
+    all_time: "All Time",
+    yesterday: "Yesterday",
+    last_week: "Last 7 Days",
+    last_month: "Last 30 Days"
+  };
 
   return (
     <div className="flex flex-col gap-6 pb-12 h-full">
@@ -46,9 +79,22 @@ export default function AgentPerformancePage() {
           <h1 className="text-3xl font-extrabold tracking-tight text-foreground">Agent Performance</h1>
           <p className="text-[15px] font-medium text-muted-foreground mt-1">Leaderboards, conversion metrics, and shift analytics.</p>
         </div>
-        <Button variant="outline" className="h-10 px-4 font-bold rounded-lg shadow-sm">
-          Download Report
-        </Button>
+        <div className="flex items-center gap-3">
+          <Select value={timeFilter} onValueChange={setTimeFilter}>
+            <SelectTrigger className="w-[180px] bg-white h-10 font-bold rounded-lg shadow-sm">
+              <SelectValue placeholder="Select timeframe" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all_time">All Time</SelectItem>
+              <SelectItem value="yesterday">Yesterday</SelectItem>
+              <SelectItem value="last_week">Last 7 Days</SelectItem>
+              <SelectItem value="last_month">Last 30 Days</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button variant="outline" className="h-10 px-4 font-bold rounded-lg shadow-sm">
+            Download Report
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -57,7 +103,7 @@ export default function AgentPerformancePage() {
             <div className="px-6 py-4 border-b border-border bg-muted/20 flex justify-between items-center">
               <h3 className="text-[15px] font-bold text-foreground flex items-center gap-2">
                 <Trophy className="w-4 h-4 text-[#F59E0B]" />
-                Top Performers (This Week)
+                Top Performers ({timeFilterLabels[timeFilter]})
               </h3>
             </div>
             <div className="p-0">
@@ -99,16 +145,16 @@ export default function AgentPerformancePage() {
             <CardContent className="p-6">
               <TrendingUp className="w-6 h-6 mb-4 opacity-80" />
               <p className="text-[11px] font-bold tracking-[0.12em] opacity-80 uppercase">Floor Average Conv. Rate</p>
-              <h3 className="text-4xl font-extrabold mt-2">21.8%</h3>
-              <p className="text-[13px] font-bold mt-2 opacity-90">+2.4% vs last week</p>
+              <h3 className="text-4xl font-extrabold mt-2">{floorAvg}</h3>
+              <p className="text-[13px] font-bold mt-2 opacity-90">Based on assigned carts</p>
             </CardContent>
           </Card>
           <Card className="shadow-sm border-border">
             <CardContent className="p-6">
               <Target className="w-6 h-6 mb-4 text-muted-foreground" />
               <p className="text-[11px] font-bold tracking-[0.12em] text-muted-foreground uppercase">Target Hit Rate</p>
-              <h3 className="text-4xl font-extrabold text-foreground mt-2">84%</h3>
-              <p className="text-[13px] font-bold text-primary mt-2">On track for monthly goal</p>
+              <h3 className="text-4xl font-extrabold text-foreground mt-2">N/A</h3>
+              <p className="text-[13px] font-bold text-muted-foreground mt-2">Requires target configuration</p>
             </CardContent>
           </Card>
         </div>

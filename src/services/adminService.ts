@@ -222,15 +222,109 @@ export async function assignAgentToBrand(brandId: string, name: string, email: s
     .select()
     .single();
 
+  // 5. If assigned successfully, scoop up any UNASSIGNED carts for this brand
+  if (!error && data) {
+    const { data: shopifyOrphans } = await (supabase as any)
+      .from('shopify_acc_table')
+      .select('id')
+      .eq('brand_id', brandId)
+      .is('agent_id', null);
+
+    const { data: shiprocketOrphans } = await (supabase as any)
+      .from('shiprocket_acc_table')
+      .select('id')
+      .eq('brand_id', brandId)
+      .is('agent_id', null);
+
+    if (shopifyOrphans) {
+      for (const cart of shopifyOrphans) {
+        await (supabase as any).rpc('assign_cart_round_robin', {
+          p_brand_id: brandId,
+          p_cart_id: cart.id,
+          p_provider_table: 'shopify_acc_table'
+        });
+      }
+    }
+    
+    if (shiprocketOrphans) {
+      for (const cart of shiprocketOrphans) {
+        await (supabase as any).rpc('assign_cart_round_robin', {
+          p_brand_id: brandId,
+          p_cart_id: cart.id,
+          p_provider_table: 'shiprocket_acc_table'
+        });
+      }
+    }
+  }
+
   return { data: data as AgentAssignment | null, error };
 }
 
 // Remove agent assignment
 export async function removeAgentFromBrand(assignmentId: string) {
+  // 1. Fetch assignment details first
+  const { data: assignment } = await (supabase as any)
+    .from('agent_brand_assignments')
+    .select('agent_id, brand_id')
+    .eq('id', assignmentId)
+    .single();
+
+  // 2. Delete the assignment
   const { error } = await (supabase as any)
     .from('agent_brand_assignments')
     .delete()
     .eq('id', assignmentId);
+
+  // 3. If deleted successfully, clear carts and then attempt to re-assign them
+  if (!error && assignment) {
+    // 3a. Revert carts to UNASSIGNED
+    await (supabase as any)
+      .from('shopify_acc_table')
+      .update({ agent_id: null, agent_name: null, assignment_status: 'UNASSIGNED' })
+      .eq('brand_id', assignment.brand_id)
+      .eq('agent_id', assignment.agent_id);
+
+    await (supabase as any)
+      .from('shiprocket_acc_table')
+      .update({ agent_id: null, agent_name: null, assignment_status: 'UNASSIGNED' })
+      .eq('brand_id', assignment.brand_id)
+      .eq('agent_id', assignment.agent_id);
+
+    // 3b. Fetch the newly unassigned carts
+    const { data: shopifyOrphans } = await (supabase as any)
+      .from('shopify_acc_table')
+      .select('id')
+      .eq('brand_id', assignment.brand_id)
+      .is('agent_id', null);
+
+    const { data: shiprocketOrphans } = await (supabase as any)
+      .from('shiprocket_acc_table')
+      .select('id')
+      .eq('brand_id', assignment.brand_id)
+      .is('agent_id', null);
+
+    // 3c. Re-assign them using round robin
+    if (shopifyOrphans) {
+      for (const cart of shopifyOrphans) {
+        await (supabase as any).rpc('assign_cart_round_robin', {
+          p_brand_id: assignment.brand_id,
+          p_cart_id: cart.id,
+          p_provider_table: 'shopify_acc_table'
+        });
+      }
+    }
+    
+    if (shiprocketOrphans) {
+      for (const cart of shiprocketOrphans) {
+        await (supabase as any).rpc('assign_cart_round_robin', {
+          p_brand_id: assignment.brand_id,
+          p_cart_id: cart.id,
+          p_provider_table: 'shiprocket_acc_table'
+        });
+      }
+    }
+  }
+
   return { error };
 }
 

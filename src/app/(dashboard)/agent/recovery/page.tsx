@@ -61,10 +61,32 @@ export default function AbandonedCartsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
-  const [dateRange, setDateRange] = useState<DateRange | undefined>({
-    from: new Date(2025, 4, 12),
-    to: new Date(2025, 4, 18),
-  });
+  const [timeFilter, setTimeFilter] = useState("all_time");
+
+  const handleTimeFilterChange = (val: string) => {
+    setTimeFilter(val);
+    let from = '';
+    let to = '';
+    if (val === 'yesterday') {
+      const d = new Date();
+      d.setDate(d.getDate() - 1);
+      from = d.toISOString().split('T')[0];
+      to = d.toISOString().split('T')[0];
+    } else if (val === 'last_week') {
+      const d = new Date();
+      d.setDate(d.getDate() - 7);
+      from = d.toISOString().split('T')[0];
+      to = new Date().toISOString().split('T')[0];
+    } else if (val === 'last_month') {
+      const d = new Date();
+      d.setDate(d.getDate() - 30);
+      from = d.toISOString().split('T')[0];
+      to = new Date().toISOString().split('T')[0];
+    }
+    setAbandonedFrom(from);
+    setAbandonedTo(to);
+  };
+
   const pageSize = 50;
   
   const handleExport = () => {
@@ -88,7 +110,9 @@ export default function AbandonedCartsPage() {
   async function fetchCarts(page: number, tab: string, brand: string, filtersState?: any) {
     setIsLoading(true);
     const filters = { listTab: tab, brand_name: brand, ...filtersState };
-    const { data, count } = await getAssignedCarts('all', page, pageSize, filters);
+    console.log("Fetching carts with filters:", filters);
+    const { data, count, error } = await getAssignedCarts('all', page, pageSize, filters);
+    console.log("Fetched data:", data?.length, "count:", count, "error:", error);
     
     if (data) {
       setCustomers(data);
@@ -323,31 +347,20 @@ export default function AbandonedCartsPage() {
           <p className="text-sm text-slate-500 font-medium">Turn abandoned carts into happy customers</p>
         </div>
         <div className="flex items-center gap-3">
-          <Popover>
-            <PopoverTrigger className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm transition-colors border border-slate-200 bg-white text-slate-700 shadow-sm font-medium h-10 px-4 min-w-[200px] justify-start hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50">
-              <CalendarIcon className="w-4 h-4 mr-2 text-slate-500" />
-              {dateRange?.from ? (
-                dateRange.to ? (
-                  <>
-                    {format(dateRange.from, "LLL dd, y")} - {format(dateRange.to, "LLL dd, y")}
-                  </>
-                ) : (
-                  format(dateRange.from, "LLL dd, y")
-                )
-              ) : (
-                <span>Pick a date</span>
-              )}
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <Calendar
-                mode="range"
-                defaultMonth={dateRange?.from}
-                selected={dateRange}
-                onSelect={setDateRange}
-                numberOfMonths={2}
-              />
-            </PopoverContent>
-          </Popover>
+          <Select value={timeFilter} onValueChange={handleTimeFilterChange}>
+            <SelectTrigger className="w-[180px] bg-white h-10 font-medium rounded-md shadow-sm border-slate-200 text-slate-700">
+              <div className="flex items-center gap-2">
+                <CalendarIcon className="w-4 h-4 text-slate-500" />
+                <SelectValue placeholder="Select timeframe" />
+              </div>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all_time">All Time</SelectItem>
+              <SelectItem value="yesterday">Yesterday</SelectItem>
+              <SelectItem value="last_week">Last 7 Days</SelectItem>
+              <SelectItem value="last_month">Last 30 Days</SelectItem>
+            </SelectContent>
+          </Select>
           
           <Select value={selectedBrand} onValueChange={(val) => setSelectedBrand(val || "all")}>
             <SelectTrigger className="w-[200px] h-10 border-slate-200 text-slate-700 font-medium">
@@ -831,8 +844,8 @@ export default function AbandonedCartsPage() {
                                 </div>
                                 <div className="text-right">
                                   <p className="text-[14px] text-slate-900 font-bold mb-0.5">{formatCurrency(histCart.cart_value)}</p>
-                                  <Badge className={`shrink-0 border-none text-[10px] font-bold px-2 py-0 rounded-sm ${histCart.cart_status === 'RECOVERED' ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-700'}`}>
-                                    {histCart.cart_status}
+                                  <Badge className={`shrink-0 border-none text-[10px] font-bold px-2 py-0 rounded-sm ${(histCart.current_status === 'completed' || histCart.cart_status === 'RECOVERED') ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-700'}`}>
+                                    {(histCart.current_status || histCart.cart_status || 'ABANDONED').toUpperCase().replace(/_/g, ' ')}
                                   </Badge>
                                 </div>
                               </div>

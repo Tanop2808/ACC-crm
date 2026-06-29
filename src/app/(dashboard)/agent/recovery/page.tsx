@@ -63,21 +63,22 @@ export default function AbandonedCartsPage() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [timeFilter, setTimeFilter] = useState("all_time");
 
-  const handleTimeFilterChange = (val: string) => {
-    setTimeFilter(val);
+  const handleTimeFilterChange = (val: string | null) => {
+    const safeVal = val || 'all_time';
+    setTimeFilter(safeVal);
     let from = '';
     let to = '';
-    if (val === 'yesterday') {
+    if (safeVal === 'yesterday') {
       const d = new Date();
       d.setDate(d.getDate() - 1);
       from = d.toISOString().split('T')[0];
       to = d.toISOString().split('T')[0];
-    } else if (val === 'last_week') {
+    } else if (safeVal === 'last_week') {
       const d = new Date();
       d.setDate(d.getDate() - 7);
       from = d.toISOString().split('T')[0];
       to = new Date().toISOString().split('T')[0];
-    } else if (val === 'last_month') {
+    } else if (safeVal === 'last_month') {
       const d = new Date();
       d.setDate(d.getDate() - 30);
       from = d.toISOString().split('T')[0];

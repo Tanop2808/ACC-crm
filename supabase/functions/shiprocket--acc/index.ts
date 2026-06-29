@@ -1,6 +1,14 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+// Helper to get current time in IST (UTC+5:30) as a string without timezone
+function getISTTimestamp() {
+  const date = new Date();
+  const istOffset = 5.5 * 60 * 60 * 1000;
+  const istDate = new Date(date.getTime() + istOffset);
+  return istDate.toISOString().replace('Z', '');
+}
+
 Deno.serve(async (req: Request) => {
   try {
     const body = await req.json();
@@ -173,7 +181,7 @@ Deno.serve(async (req: Request) => {
           tax: body.tax ?? existingRecord.tax,
           latest_stage: body.latest_stage ?? existingRecord.latest_stage,
           abandoned_at: abandonedAt,
-          updated_at: new Date().toISOString()
+          updated_at: getISTTimestamp()
         })
         .eq("id", existingRecord.id)
         .select()
@@ -242,7 +250,7 @@ Deno.serve(async (req: Request) => {
         follow_up: false,
         call_logs: [],
         activity_logs: [],
-        updated_at: new Date().toISOString()
+        updated_at: getISTTimestamp()
       })
       .select()
       .single();

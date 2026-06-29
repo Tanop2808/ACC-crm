@@ -17,7 +17,7 @@ export default function AgentPerformancePage() {
     async function fetchAgents() {
       setIsLoading(true);
       // Fetch real data from our new RPC function with time filter
-      const { data, error } = await supabase.rpc('get_agent_performance', { p_time_filter: timeFilter });
+      const { data, error } = await (supabase as any).rpc('get_agent_performance', { p_time_filter: timeFilter });
       
       if (data && data.length > 0) {
         let globalTotal = 0;

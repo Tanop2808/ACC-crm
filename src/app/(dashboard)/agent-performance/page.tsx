@@ -80,7 +80,7 @@ export default function AgentPerformancePage() {
           <p className="text-[15px] font-medium text-muted-foreground mt-1">Leaderboards, conversion metrics, and shift analytics.</p>
         </div>
         <div className="flex items-center gap-3">
-          <Select value={timeFilter} onValueChange={setTimeFilter}>
+          <Select value={timeFilter} onValueChange={(val) => setTimeFilter(val || "all_time")}>
             <SelectTrigger className="w-[180px] bg-white h-10 font-bold rounded-lg shadow-sm">
               <SelectValue placeholder="Select timeframe" />
             </SelectTrigger>

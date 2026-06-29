@@ -4,7 +4,7 @@ import { CustomerRecovery } from '../types/database';
 export async function getCustomers(): Promise<{ data: CustomerRecovery[] | null; error: Error | null }> {
   try {
     let query = supabase
-      .from('customer_recovery_view')
+      .from('abandon_cart_master')
       .select('*')
       .order('abandoned_at', { ascending: false });
 
@@ -30,7 +30,7 @@ export async function getCustomers(): Promise<{ data: CustomerRecovery[] | null;
         return { data: [], error: null };
       }
 
-      query = query.in('source', assignedBrands);
+      query = query.in('brand_name', assignedBrands);
     }
 
     const { data, error } = await query;

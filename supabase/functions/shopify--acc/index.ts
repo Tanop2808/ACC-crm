@@ -534,12 +534,40 @@ Deno.serve(async (req: Request) => {
     // 8. CREATE NEW CUSTOMER CART RECORD
     // ==========================================
 
-
     console.log(
       "Creating New Shopify ACC Record"
     );
 
+    // Check for previous attempts today
+    let autoCurrentStatus = null;
+    let autoCallStatus = null;
+    let autoFollowUp = false;
+    let autoNotes = null;
 
+    if (customerEmail || customerPhone) {
+      const todayStart = new Date();
+      todayStart.setUTCHours(0, 0, 0, 0);
+
+      const emailQuery = customerEmail ? `customer_email.eq.${customerEmail}` : '';
+      const phoneQuery = customerPhone ? `customer_phone.eq.${customerPhone}` : '';
+      const orQuery = [emailQuery, phoneQuery].filter(Boolean).join(',');
+
+      const { data: previousCarts } = await supabase
+        .from('abandon_cart_master')
+        .select('current_status')
+        .gte('abandoned_at', todayStart.toISOString())
+        .eq('brand_id', integration.brand_id)
+        .or(orQuery)
+        .eq('current_status', 'attempted')
+        .limit(1);
+
+      if (previousCarts && previousCarts.length > 0) {
+        autoCurrentStatus = "attempted";
+        autoCallStatus = "Attempted";
+        autoFollowUp = true;
+        autoNotes = "[System] Customer was already attempted earlier today.";
+      }
+    }
 
 
     const {
@@ -679,8 +707,16 @@ Deno.serve(async (req: Request) => {
 
 
         follow_up:
-          false,
-
+          autoFollowUp,
+          
+        current_status:
+          autoCurrentStatus,
+          
+        call_status:
+          autoCallStatus,
+          
+        notes:
+          autoNotes,
 
         call_logs:
           [],

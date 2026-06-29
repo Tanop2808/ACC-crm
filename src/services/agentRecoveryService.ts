@@ -146,14 +146,14 @@ export async function getAssignedCarts(
   if (filters.listTab) {
     if (filters.listTab === 'calls') {
       query = query.is('call_status', null);
-    } else if (filters.listTab === 'in_progress' || filters.listTab === 'in') {
-      query = query.not('call_status', 'is', null)
-                   .neq('current_status', 'converted')
-                   .neq('current_status', 'lost');
+    } else if (filters.listTab === 'interested') {
+      query = query.eq('current_status', 'interested');
+    } else if (filters.listTab === 'attempted') {
+      query = query.eq('current_status', 'attempted');
     } else if (filters.listTab === 'completed') {
-      query = query.eq('current_status', 'converted');
+      query = query.eq('current_status', 'completed');
     } else if (filters.listTab === 'not_interested' || filters.listTab === 'not') {
-      query = query.eq('current_status', 'lost');
+      query = query.eq('current_status', 'not_interested');
     }
   }
 
@@ -304,9 +304,9 @@ async function resolveCartTable(cartId: string): Promise<string> {
 
 export async function updateRecoveryStatus(cartId: string, assignmentId: string, agentId: string, newStatus: string, oldStatus: string | null) {
   let updates: Record<string, any> = { current_status: newStatus };
-  if (newStatus === 'follow_up') {
+  if (newStatus === 'interested' || newStatus === 'attempted') {
     updates.follow_up = true;
-  } else if (newStatus === 'converted' || newStatus === 'lost') {
+  } else if (newStatus === 'completed' || newStatus === 'not_interested') {
     updates.follow_up = false;
   }
 
@@ -396,9 +396,9 @@ export async function updateStatusAndNote(cartId: string, assignmentId: string, 
   let updates: Record<string, any> = { current_status: newStatus, notes: noteText };
   if (callStatus) updates.call_status = callStatus;
 
-  if (newStatus === 'follow_up') {
+  if (newStatus === 'interested' || newStatus === 'attempted') {
     updates.follow_up = true;
-  } else if (newStatus === 'converted' || newStatus === 'lost') {
+  } else if (newStatus === 'completed' || newStatus === 'not_interested') {
     updates.follow_up = false;
   }
 

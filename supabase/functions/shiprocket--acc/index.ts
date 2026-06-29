@@ -234,6 +234,37 @@ Deno.serve(async (req: Request) => {
     // ==========================================
     console.log("Creating New Shiprocket ACC Record");
 
+    // Check for previous attempts today
+    let autoCurrentStatus = null;
+    let autoCallStatus = null;
+    let autoFollowUp = false;
+    let autoNotes = null;
+
+    if (email || phone) {
+      const todayStart = new Date();
+      todayStart.setUTCHours(0, 0, 0, 0);
+
+      const emailQuery = email ? `customer_email.eq.${email}` : '';
+      const phoneQuery = phone ? `customer_phone.eq.${phone}` : '';
+      const orQuery = [emailQuery, phoneQuery].filter(Boolean).join(',');
+
+      const { data: previousCarts } = await supabase
+        .from('abandon_cart_master')
+        .select('current_status')
+        .gte('abandoned_at', todayStart.toISOString())
+        .eq('brand_id', integration.brand_id)
+        .or(orQuery)
+        .eq('current_status', 'attempted')
+        .limit(1);
+
+      if (previousCarts && previousCarts.length > 0) {
+        autoCurrentStatus = "attempted";
+        autoCallStatus = "Attempted";
+        autoFollowUp = true;
+        autoNotes = "[System] Customer was already attempted earlier today.";
+      }
+    }
+
     const { data: newRecord, error: insertError } = await supabase
       .from("shiprocket_acc_table")
       .insert({
@@ -269,7 +300,10 @@ Deno.serve(async (req: Request) => {
         tax: body.tax ?? 0,
         latest_stage: body.latest_stage ?? null,
         attempts: 0,
-        follow_up: false,
+        follow_up: autoFollowUp,
+        current_status: autoCurrentStatus,
+        call_status: autoCallStatus,
+        notes: autoNotes,
         call_logs: [],
         activity_logs: [],
         updated_at: getISTTimestamp()

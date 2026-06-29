@@ -217,9 +217,10 @@ export default function AbandonedCartsPage() {
     if (!selectedCustomer) return;
     
     let callStatusUpdate: string | undefined = undefined;
-    if (newStatus === 'follow_up') callStatusUpdate = 'Follow-up';
-    else if (newStatus === 'converted') callStatusUpdate = 'Connected';
-    else if (newStatus === 'lost') callStatusUpdate = 'Not Interested';
+    if (newStatus === 'interested') callStatusUpdate = 'Interested';
+    else if (newStatus === 'completed') callStatusUpdate = 'Completed';
+    else if (newStatus === 'not_interested') callStatusUpdate = 'Not Interested';
+    else if (newStatus === 'attempted') callStatusUpdate = 'Attempted';
 
     const { error } = await updateStatusAndNote(
       selectedCustomer.id,
@@ -412,7 +413,8 @@ export default function AbandonedCartsPage() {
               {[
                 { id: 'all', label: 'All Carts' },
                 { id: 'calls', label: 'Calls to Make' },
-                { id: 'in_progress', label: 'In Progress' },
+                { id: 'interested', label: 'Interested' },
+                { id: 'attempted', label: 'Attempted' },
                 { id: 'completed', label: 'Completed' },
                 { id: 'not_interested', label: 'Not Interested' }
               ].map(tab => {
@@ -582,16 +584,17 @@ export default function AbandonedCartsPage() {
 
                   <div className="flex items-center gap-3 mb-5 px-1">
                     <Select 
-                      value={pendingRecoveryStatus || (['follow_up', 'converted', 'lost'].includes(selectedCustomer.current_status || '') ? selectedCustomer.current_status : '') || ''} 
+                      value={pendingRecoveryStatus || (['interested', 'attempted', 'completed', 'not_interested'].includes(selectedCustomer.current_status || '') ? selectedCustomer.current_status : '') || ''} 
                       onValueChange={(val) => setPendingRecoveryStatus(val || "")}
                     >
                       <SelectTrigger className="w-[180px] bg-white border-slate-200 text-slate-700 text-[13px] font-bold">
                         <SelectValue placeholder="Select Status" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="follow_up">In Progress</SelectItem>
-                        <SelectItem value="converted">Completed</SelectItem>
-                        <SelectItem value="lost">Not Interested</SelectItem>
+                        <SelectItem value="interested">Interested</SelectItem>
+                        <SelectItem value="not_interested">Not Interested</SelectItem>
+                        <SelectItem value="completed">Completed</SelectItem>
+                        <SelectItem value="attempted">Attempted</SelectItem>
                       </SelectContent>
                     </Select>
                     <Button 

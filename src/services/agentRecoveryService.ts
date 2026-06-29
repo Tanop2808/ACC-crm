@@ -19,6 +19,8 @@ export interface AssignedCart {
   state: string | null;
   country: string | null;
   zip: string | null;
+  cart_id?: string | null;
+  checkout_name?: string | null;
   checkout_url?: string | null;
   cart_value: number;
   currency: string;

@@ -82,7 +82,7 @@ export default function CustomersPage() {
             totalSpent: '₹0',
             lastActivity: item.current_status || 'Not Recovered',
             customerSince: 'N/A',
-            cartId: item.cart_id || 'N/A',
+            cartId: item.checkout_name || item.cart_id || 'N/A',
             dateTime: dateTimeStr,
             cartDetails: cartDetailsStr,
             cartItems: products

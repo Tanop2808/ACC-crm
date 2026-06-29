@@ -24,7 +24,7 @@ import {
   User, Bell, Calendar as CalendarIcon, Filter, Download, PhoneCall, MapPin, 
   ShoppingCart, Phone, MoreVertical, CheckCircle2, ChevronLeft, 
   ChevronRight, MessageSquare, Mail, FileEdit, Search,
-  Heart, HeartHandshake, Sparkles, Smile, MessageCircle, Loader2
+  Heart, HeartHandshake, Sparkles, Smile, MessageCircle, Loader2, Hash
 } from "lucide-react";
 import { getAssignedCarts, getBrands, getProviders, TEMP_LOGGED_IN_AGENT_ID, AssignedCart, getCustomerHistory, getCartTimeline, addNote, updateStatusAndNote } from "@/services/agentRecoveryService";
 import { supabase } from "@/lib/supabase";
@@ -485,6 +485,7 @@ export default function AbandonedCartsPage() {
                       <div className="min-w-0">
                         <p className="text-[13px] font-bold text-slate-900 truncate">{c.customer_name || 'Unknown'}</p>
                         <p className="text-[12px] font-medium text-slate-500 truncate">{c.customer_phone || c.customer_email}</p>
+                        <p className="text-[11px] font-medium text-slate-400 truncate font-mono">ID: {c.checkout_name || c.cart_id}</p>
                       </div>
                     </div>
                     <div className="col-span-2">
@@ -574,6 +575,10 @@ export default function AbandonedCartsPage() {
                             {' • '}
                             {selectedCustomer.source ? selectedCustomer.source.charAt(0).toUpperCase() + selectedCustomer.source.slice(1) : (providers.find(p => p.id === selectedCustomer.provider_id)?.name || 'Unknown Provider')}
                           </span>
+                        </p>
+                        <p className="text-[13px] font-medium text-slate-500 flex items-start gap-2">
+                          <Hash className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                          <span className="break-words font-mono text-[12px] pt-[1px]">ID: {selectedCustomer.checkout_name || selectedCustomer.cart_id || 'N/A'}</span>
                         </p>
                       </div>
                     </div>

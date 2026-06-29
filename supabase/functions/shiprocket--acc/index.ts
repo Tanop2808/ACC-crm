@@ -99,7 +99,7 @@ Deno.serve(async (req: Request) => {
     const checkoutUrl = body.checkout_url ?? null;
     const cartValue = Number(body.total_price ?? 0);
     const products = body.items ?? [];
-    const abandonedAt = body.updated_at ? new Date(body.updated_at) : new Date();
+    const abandonedAt = body.updated_at ? body.updated_at : getISTTimestamp();
 
     console.log("Extracted Customer:", { email, phone, cartId });
 

@@ -278,10 +278,22 @@ export default function AbandonedCartsPage() {
   
   const getDaysAgo = (dateStr: string | null) => {
     if (!dateStr) return 'Unknown';
-    const diff = Date.now() - parseDateUTC(dateStr).getTime();
+    const targetDate = parseDateUTC(dateStr);
+    const now = new Date();
+    
+    // Get date string in IST and parse to local Date object
+    const targetIST = new Date(targetDate.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+    const nowIST = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+    
+    // Reset to midnight for calendar day comparison
+    targetIST.setHours(0, 0, 0, 0);
+    nowIST.setHours(0, 0, 0, 0);
+    
+    const diff = nowIST.getTime() - targetIST.getTime();
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    
     if (days === 0) return 'Today';
-    if (days === 1) return '1 day ago';
+    if (days === 1) return 'Yesterday';
     return `${days} days ago`;
   };
 

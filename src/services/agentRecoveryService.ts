@@ -111,6 +111,12 @@ export async function getAssignedCarts(
     const assignedBrands = (assignments || []).map((a: any) => a.brand_name).filter(Boolean);
     const assignedAgentId = assignments && assignments.length > 0 ? assignments[0].agent_id : null;
     
+    console.log("=== DEBUG AGENT VIEW ===");
+    console.log("Session Role:", sessionRole);
+    console.log("Session Email:", sessionEmail);
+    console.log("Extracted Agent ID for filter:", assignedAgentId);
+    console.log("========================");
+
     if (assignedBrands.length === 0 || !assignedAgentId) {
       // Agent is not assigned to any brands yet
       return { data: [], count: 0, error: null };

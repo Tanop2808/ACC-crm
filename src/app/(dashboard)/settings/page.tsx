@@ -23,6 +23,12 @@ export default function SettingsPage() {
   const [isLoadingAdmins, setIsLoadingAdmins] = useState(false);
   const [adminError, setAdminError] = useState<string | null>(null);
 
+  // Preferences State
+  const [compactDensity, setCompactDensity] = useState(false);
+  const [audioAlerts, setAudioAlerts] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState("");
+
   useEffect(() => {
     async function fetchUser() {
       const sessionEmail = typeof window !== 'undefined' ? localStorage.getItem('session_email') : null;
@@ -42,8 +48,14 @@ export default function SettingsPage() {
 
         if (sessionRole === 'admin') {
           setIsAdminMode(true);
-          setName("Admin User");
-          setInitials("AD");
+          const storedName = localStorage.getItem('admin_name');
+          if (storedName) {
+            setName(storedName);
+            setInitials(storedName.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase());
+          } else {
+            setName("Admin User");
+            setInitials("AD");
+          }
         } else {
           // Agent fallback
           const { data } = await (supabase as any).from('agents').select('name').eq('email', cleanEmail).maybeSingle();
@@ -57,6 +69,9 @@ export default function SettingsPage() {
           }
         }
       }
+      
+      setCompactDensity(localStorage.getItem('pref_compact_density') === 'true');
+      setAudioAlerts(localStorage.getItem('pref_audio_alerts') === 'true');
     }
     fetchUser();
   }, []);
@@ -110,6 +125,32 @@ export default function SettingsPage() {
         await loadAdmins();
       }
     }
+  }
+
+  async function handleSaveChanges() {
+    setIsSaving(true);
+    setSaveMessage("");
+    
+    localStorage.setItem('pref_compact_density', compactDensity.toString());
+    localStorage.setItem('pref_audio_alerts', audioAlerts.toString());
+    
+    if (isAdminMode) {
+      localStorage.setItem('admin_name', name);
+    } else {
+      const { error } = await (supabase as any).from('agents').update({ name }).eq('email', email.toLowerCase());
+      if (error) {
+        setSaveMessage("Failed to update profile.");
+        setIsSaving(false);
+        return;
+      }
+    }
+    
+    const newInitials = name.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase();
+    setInitials(newInitials);
+    
+    setSaveMessage("Changes saved successfully.");
+    setTimeout(() => setSaveMessage(""), 3000);
+    setIsSaving(false);
   }
 
   return (
@@ -184,8 +225,11 @@ export default function SettingsPage() {
                       <p className="font-bold text-[14px]">Compact Density</p>
                       <p className="text-[12px] text-muted-foreground">Reduce padding to show more data in tables.</p>
                     </div>
-                    <div className="w-10 h-5 bg-primary rounded-full relative cursor-pointer">
-                      <div className="w-4 h-4 bg-white rounded-full absolute right-0.5 top-0.5" />
+                    <div 
+                      className={`w-10 h-5 rounded-full relative cursor-pointer ${compactDensity ? 'bg-primary' : 'bg-muted border border-border'}`}
+                      onClick={() => setCompactDensity(!compactDensity)}
+                    >
+                      <div className={`w-4 h-4 rounded-full absolute top-[1px] transition-all ${compactDensity ? 'bg-white right-0.5' : 'bg-muted-foreground left-0.5'}`} />
                     </div>
                   </div>
                   <div className="flex items-center justify-between py-2 border-b border-border/50">
@@ -193,8 +237,11 @@ export default function SettingsPage() {
                       <p className="font-bold text-[14px]">Audio Alerts</p>
                       <p className="text-[12px] text-muted-foreground">Play a sound when high priority carts arrive.</p>
                     </div>
-                    <div className="w-10 h-5 bg-muted rounded-full relative cursor-pointer border border-border">
-                      <div className="w-4 h-4 bg-muted-foreground rounded-full absolute left-0.5 top-[1px]" />
+                    <div 
+                      className={`w-10 h-5 rounded-full relative cursor-pointer ${audioAlerts ? 'bg-primary' : 'bg-muted border border-border'}`}
+                      onClick={() => setAudioAlerts(!audioAlerts)}
+                    >
+                      <div className={`w-4 h-4 rounded-full absolute top-[1px] transition-all ${audioAlerts ? 'bg-white right-0.5' : 'bg-muted-foreground left-0.5'}`} />
                     </div>
                   </div>
                   <div className="flex items-center justify-between py-2">
@@ -207,8 +254,12 @@ export default function SettingsPage() {
                 </CardContent>
               </Card>
 
-              <div className="flex justify-end pt-4">
-                <Button className="font-bold px-8">Save Changes</Button>
+              <div className="flex justify-end items-center gap-4 pt-4">
+                {saveMessage && <span className="text-[13px] font-bold text-primary">{saveMessage}</span>}
+                <Button className="font-bold px-8" onClick={handleSaveChanges} disabled={isSaving}>
+                  {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                  Save Changes
+                </Button>
               </div>
             </>
           )}

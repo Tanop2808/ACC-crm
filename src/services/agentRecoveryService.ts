@@ -109,7 +109,7 @@ export async function getAssignedCarts(
     }
 
     const assignedBrands = (assignments || []).map((a: any) => a.brand_name).filter(Boolean);
-    const assignedAgentId = assignments && assignments.length > 0 ? assignments[0].agent_id : null;
+    const assignedAgentId = assignments && assignments.length > 0 ? (assignments[0] as any).agent_id : null;
     
     console.log("=== DEBUG AGENT VIEW ===");
     console.log("Session Role:", sessionRole);

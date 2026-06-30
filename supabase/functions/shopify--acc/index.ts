@@ -5,6 +5,14 @@ declare const Deno: any;
 
 Deno.serve(async (req: Request) => {
 
+// Helper to get current time in IST (UTC+5:30) as a string without timezone
+function getISTTimestamp() {
+  const date = new Date();
+  const istOffset = 5.5 * 60 * 60 * 1000;
+  const istDate = new Date(date.getTime() + istOffset);
+  return istDate.toISOString().replace('Z', '');
+}
+
   try {
 
 
@@ -243,8 +251,8 @@ Deno.serve(async (req: Request) => {
 
     const abandonedAt =
       body.createdAt
-      ? new Date(body.createdAt)
-      : new Date();
+      ? body.createdAt
+      : getISTTimestamp();
        
 
     const discountCodes =
@@ -440,7 +448,7 @@ Deno.serve(async (req: Request) => {
 
 
           updated_at:
-            new Date().toISOString()
+            getISTTimestamp()
 
 
         })
@@ -727,7 +735,7 @@ Deno.serve(async (req: Request) => {
 
 
         updated_at:
-          new Date().toISOString()
+          getISTTimestamp()
 
 
       })

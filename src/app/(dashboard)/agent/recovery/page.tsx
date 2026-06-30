@@ -38,6 +38,7 @@ export default function AbandonedCartsPage() {
   const [selectedCartId, setSelectedCartId] = useState<string | null>(null);
   const [activeListTab, setActiveListTab] = useState("calls");
   const [activeDetailTab, setActiveDetailTab] = useState("script");
+  const [currentAgentId, setCurrentAgentId] = useState<string | null>(null);
   const [customerHistory, setCustomerHistory] = useState<AssignedCart[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [timeline, setTimeline] = useState<any[]>([]);
@@ -142,9 +143,10 @@ export default function AbandonedCartsPage() {
       
       if (email) {
         if (role === 'agent') {
-          const { data: agentData } = await (supabase as any).from('agents').select('name').eq('email', email).maybeSingle();
-          if (agentData?.name) {
-            setUserName(agentData.name);
+          const { data: agentData } = await (supabase as any).from('agents').select('name, id').eq('email', email).maybeSingle();
+          if (agentData) {
+            if (agentData.name) setUserName(agentData.name);
+            if (agentData.id) setCurrentAgentId(agentData.id);
           } else {
             setUserName(email.split('@')[0]);
           }
@@ -226,7 +228,7 @@ export default function AbandonedCartsPage() {
     const { error } = await addNote(
       selectedCustomer.id, 
       null as any,
-      TEMP_LOGGED_IN_AGENT_ID, 
+      (currentAgentId || null) as any, 
       finalNote
     );
     
@@ -250,7 +252,7 @@ export default function AbandonedCartsPage() {
     const { error } = await updateStatusAndNote(
       selectedCustomer.id,
       null as any,
-      TEMP_LOGGED_IN_AGENT_ID,
+      (currentAgentId || null) as any,
       newStatus,
       selectedCustomer.current_status,
       selectedCustomer.notes || "",
@@ -270,7 +272,7 @@ export default function AbandonedCartsPage() {
     const { error } = await addNote(
       selectedCustomer.id, 
       null as any,
-      TEMP_LOGGED_IN_AGENT_ID, 
+      (currentAgentId || null) as any, 
       activityInput
     );
     
@@ -452,15 +454,25 @@ export default function AbandonedCartsPage() {
             {/* List Header + Rows */}
             <div className="flex-1 overflow-auto custom-scrollbar min-h-0">
               <div className="min-w-[720px]">
-            <div className="grid grid-cols-12 gap-4 px-6 py-4 border-b border-slate-100 bg-white">
-              <div className="col-span-1 flex items-center justify-center"><Checkbox className="w-4 h-4 rounded" /></div>
-              <div className="col-span-3 text-[12px] font-bold text-slate-500">Customer</div>
-              <div className="col-span-2 text-[12px] font-bold text-slate-500">Cart Value</div>
-              <div className="col-span-2 text-[12px] font-bold text-slate-500">Abandoned</div>
-              <div className="col-span-1 text-[12px] font-bold text-slate-500 text-center">Priority</div>
-              <div className="col-span-2 text-[12px] font-bold text-slate-500">Agent</div>
-              <div className="col-span-1 text-[12px] font-bold text-slate-500 text-center">Action</div>
-            </div>
+            {activeListTab === 'recovered' ? (
+              <div className="grid grid-cols-12 gap-4 px-6 py-4 border-b border-slate-100 bg-white">
+                <div className="col-span-1 flex items-center justify-center"><Checkbox className="w-4 h-4 rounded" /></div>
+                <div className="col-span-3 text-[12px] font-bold text-slate-500">Customer</div>
+                <div className="col-span-3 text-[12px] font-bold text-slate-500">Order ID</div>
+                <div className="col-span-2 text-[12px] font-bold text-slate-500">Amount</div>
+                <div className="col-span-3 text-[12px] font-bold text-slate-500">Order Details</div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-12 gap-4 px-6 py-4 border-b border-slate-100 bg-white">
+                <div className="col-span-1 flex items-center justify-center"><Checkbox className="w-4 h-4 rounded" /></div>
+                <div className="col-span-3 text-[12px] font-bold text-slate-500">Customer</div>
+                <div className="col-span-2 text-[12px] font-bold text-slate-500">Cart Value</div>
+                <div className="col-span-2 text-[12px] font-bold text-slate-500">Abandoned</div>
+                <div className="col-span-1 text-[12px] font-bold text-slate-500 text-center">Priority</div>
+                <div className="col-span-2 text-[12px] font-bold text-slate-500">Agent</div>
+                <div className="col-span-1 text-[12px] font-bold text-slate-500 text-center">Action</div>
+              </div>
+            )}
 
             {/* List Content */}
             <div>
@@ -479,37 +491,68 @@ export default function AbandonedCartsPage() {
                     <div className="col-span-1 flex items-center justify-center">
                       <Checkbox checked={isSelected} className={isSelected ? "data-[state=checked]:bg-[#7B5EE4] data-[state=checked]:border-[#7B5EE4]" : ""} />
                     </div>
-                    <div className="col-span-3 flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 font-bold text-[12px] shrink-0">
-                        {getInitials(c.customer_name)}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-[13px] font-bold text-slate-900 truncate">{c.customer_name || 'Unknown'}</p>
-                        <p className="text-[12px] font-medium text-slate-500 truncate">{c.customer_phone || c.customer_email}</p>
-                        <p className="text-[11px] font-medium text-slate-400 truncate font-mono">ID: {c.checkout_name || c.cart_id}</p>
-                      </div>
-                    </div>
-                    <div className="col-span-2">
-                      <p className="text-[14px] font-bold text-slate-900">{formatCurrency(c.cart_value)}</p>
-                    </div>
-                    <div className="col-span-2">
-                      <p className="text-[13px] font-bold text-slate-900">{getDaysAgo(c.abandoned_at)}</p>
-                      <p className="text-[12px] font-medium text-slate-500">{formatDateTime(c.abandoned_at).split(', ')[1] || ''}</p>
-                    </div>
-                    <div className="col-span-1 flex items-center justify-center">
-                      <Badge variant="outline" className={`text-[11px] font-bold border px-2 py-0.5 rounded-full ${prio.color}`}>
-                        {prio.label}
-                      </Badge>
-                    </div>
-                    <div className="col-span-2">
-                      <p className="text-[13px] font-bold text-slate-900 truncate">{c.agent_name || 'Unassigned'}</p>
-                      <p className="text-[12px] font-medium text-slate-500 truncate">{c.assignment_status || 'Pending'}</p>
-                    </div>
-                    <div className="col-span-1 flex items-center justify-center gap-2">
-                      <button className="w-8 h-8 rounded-full bg-[#F4F1FD] text-[#7B5EE4] flex items-center justify-center hover:bg-[#EAE4FC] transition-colors">
-                        <PhoneCall className="w-3 h-3" />
-                      </button>
-                    </div>
+                    
+                    {activeListTab === 'recovered' ? (
+                      <>
+                        <div className="col-span-3 flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 font-bold text-[12px] shrink-0">
+                            {getInitials(c.customer_name)}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[13px] font-bold text-slate-900 truncate">{c.customer_name || 'Unknown'}</p>
+                            <p className="text-[12px] font-medium text-slate-500 truncate">{c.customer_phone || c.customer_email}</p>
+                          </div>
+                        </div>
+                        <div className="col-span-3">
+                           <p className="text-[13px] font-medium text-slate-900 truncate font-mono">
+                             {c.source === 'shiprocket' ? (c.cart_id || 'N/A') : (c.checkout_name || c.cart_id || 'N/A')}
+                           </p>
+                           <p className="text-[11px] font-medium text-slate-500">{c.source === 'shiprocket' ? 'Shiprocket' : 'Shopify'}</p>
+                        </div>
+                        <div className="col-span-2">
+                          <p className="text-[14px] font-bold text-slate-900">{formatCurrency(c.cart_value)}</p>
+                        </div>
+                        <div className="col-span-3">
+                          <p className="text-[12px] font-medium text-slate-600 line-clamp-2">
+                             {Array.isArray(c.products) ? c.products.map((p: any) => p.name || p.product).join(', ') : 'No product details'}
+                          </p>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="col-span-3 flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 font-bold text-[12px] shrink-0">
+                            {getInitials(c.customer_name)}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[13px] font-bold text-slate-900 truncate">{c.customer_name || 'Unknown'}</p>
+                            <p className="text-[12px] font-medium text-slate-500 truncate">{c.customer_phone || c.customer_email}</p>
+                            <p className="text-[11px] font-medium text-slate-400 truncate font-mono">ID: {c.checkout_name || c.cart_id}</p>
+                          </div>
+                        </div>
+                        <div className="col-span-2">
+                          <p className="text-[14px] font-bold text-slate-900">{formatCurrency(c.cart_value)}</p>
+                        </div>
+                        <div className="col-span-2">
+                          <p className="text-[13px] font-bold text-slate-900">{getDaysAgo(c.abandoned_at)}</p>
+                          <p className="text-[12px] font-medium text-slate-500">{formatDateTime(c.abandoned_at).split(', ')[1] || ''}</p>
+                        </div>
+                        <div className="col-span-1 flex items-center justify-center">
+                          <Badge variant="outline" className={`text-[11px] font-bold border px-2 py-0.5 rounded-full ${prio.color}`}>
+                            {prio.label}
+                          </Badge>
+                        </div>
+                        <div className="col-span-2">
+                          <p className="text-[13px] font-bold text-slate-900 truncate">{c.agent_name || 'Unassigned'}</p>
+                          <p className="text-[12px] font-medium text-slate-500 truncate">{c.assignment_status || 'Pending'}</p>
+                        </div>
+                        <div className="col-span-1 flex items-center justify-center gap-2">
+                          <button className="w-8 h-8 rounded-full bg-[#F4F1FD] text-[#7B5EE4] flex items-center justify-center hover:bg-[#EAE4FC] transition-colors">
+                            <PhoneCall className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 )
               })}

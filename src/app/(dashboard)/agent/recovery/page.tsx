@@ -430,6 +430,7 @@ export default function AbandonedCartsPage() {
                 { id: 'interested', label: 'Interested' },
                 { id: 'attempted', label: 'Attempted' },
                 { id: 'completed', label: 'Completed' },
+                { id: 'recovered', label: 'Recovered' },
                 { id: 'not_interested', label: 'Not Interested' }
               ].map(tab => {
                 const isActive = activeListTab === tab.id;
@@ -613,6 +614,7 @@ export default function AbandonedCartsPage() {
                         <SelectItem value="interested">Interested</SelectItem>
                         <SelectItem value="not_interested">Not Interested</SelectItem>
                         <SelectItem value="completed">Completed</SelectItem>
+                        <SelectItem value="recovered">Recovered</SelectItem>
                         <SelectItem value="attempted">Attempted</SelectItem>
                       </SelectContent>
                     </Select>

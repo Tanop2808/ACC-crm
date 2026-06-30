@@ -9,6 +9,20 @@ function getISTTimestamp() {
   return istDate.toISOString().replace('Z', '');
 }
 
+// Helper to convert UTC string from Shiprocket to IST string
+function convertUTCToIST(utcDateString: string) {
+  const formattedString = utcDateString.includes('T') ? utcDateString : utcDateString.replace(' ', 'T');
+  const dateStr = formattedString.endsWith('Z') || formattedString.includes('+') 
+    ? formattedString 
+    : formattedString + 'Z';
+    
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return utcDateString;
+  
+  const istOffset = 5.5 * 60 * 60 * 1000;
+  const istDate = new Date(date.getTime() + istOffset);
+  return istDate.toISOString().replace('Z', '');
+}
 Deno.serve(async (req: Request) => {
   try {
     const body = await req.json();
@@ -99,7 +113,7 @@ Deno.serve(async (req: Request) => {
     const checkoutUrl = body.checkout_url ?? null;
     const cartValue = Number(body.total_price ?? 0);
     const products = body.items ?? [];
-    const abandonedAt = body.updated_at ? body.updated_at : getISTTimestamp();
+    const abandonedAt = body.updated_at ? convertUTCToIST(body.updated_at) : getISTTimestamp();
 
     console.log("Extracted Customer:", { email, phone, cartId });
 

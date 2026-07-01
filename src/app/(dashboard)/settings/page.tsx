@@ -253,7 +253,7 @@ export default function SettingsPage() {
                       <p className="font-bold text-[14px]">Timezone</p>
                       <p className="text-[12px] text-muted-foreground">Set your local timezone for metrics.</p>
                     </div>
-                    <Select value={timezone} onValueChange={setTimezone}>
+                    <Select value={timezone} onValueChange={(val) => val && setTimezone(val)}>
                       <SelectTrigger className="w-[180px] h-8 text-[12px] font-bold font-mono">
                         <SelectValue placeholder="Select Timezone" />
                       </SelectTrigger>

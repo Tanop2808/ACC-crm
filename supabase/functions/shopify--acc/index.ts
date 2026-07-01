@@ -36,10 +36,11 @@ Deno.serve(async (req: Request) => {
     // ==========================================
 
 
-    const integrationToken =
-      req.headers
-        .get("x-integration-token")
-        ?.trim();
+    let integrationToken = req.headers.get("x-integration-token")?.trim();
+    if (!integrationToken) {
+      const url = new URL(req.url);
+      integrationToken = url.searchParams.get("token")?.trim();
+    }
 
 
 
@@ -200,6 +201,69 @@ Deno.serve(async (req: Request) => {
 
 
     // ==========================================
+    // 5. HANDLE ORDER CREATED (RECOVERY)
+    // ==========================================
+    const shopifyTopic = req.headers.get("x-shopify-topic")?.trim();
+
+    if (body.event_type === "order_created" || shopifyTopic === "orders/create") {
+      console.log("Processing Order Created Event...");
+      const orderCheckoutToken = body.checkout_token ?? body.cart_token ?? body.checkoutToken ?? body.checkoutId ?? null;
+      const orderEmail = body.email ?? body.customer?.email ?? null;
+      const orderPhone = body.phone ?? body.customer?.phone ?? null;
+
+      if (!orderCheckoutToken && !orderEmail && !orderPhone) {
+        return new Response(JSON.stringify({ success: false, error: "Missing identifying fields" }), { status: 400 });
+      }
+
+      const todayStart = new Date();
+      todayStart.setUTCHours(0, 0, 0, 0);
+
+      let orQueryParts = [];
+      if (orderCheckoutToken) orQueryParts.push(`checkoutName.eq.${orderCheckoutToken}`);
+      if (orderEmail) orQueryParts.push(`customer_email.eq.${orderEmail}`);
+      if (orderPhone) orQueryParts.push(`customer_phone.eq.${orderPhone}`);
+      const orQuery = orQueryParts.join(',');
+
+      const { data: abandonedCarts, error: fetchError } = await supabase
+        .from("shopify_acc_table")
+        .select("id")
+        .eq("brand_id", integration.brand_id)
+        .gte("abandoned_at", todayStart.toISOString())
+        .in("cart_status", ["ABANDONED"])
+        .or(orQuery);
+
+      if (fetchError) {
+        console.error("Error fetching abandoned carts for recovery:", fetchError);
+        return new Response(JSON.stringify({ success: false, error: fetchError.message }), { status: 500 });
+      }
+
+      if (abandonedCarts && abandonedCarts.length > 0) {
+        const cartIds = abandonedCarts.map(cart => cart.id);
+        const { error: updateError } = await supabase
+          .from("shopify_acc_table")
+          .update({
+            cart_status: "RECOVERED",
+            current_status: "recovered",
+            follow_up: false,
+            notes: "[System] Order was placed, cart recovered.",
+            updated_at: getISTTimestamp()
+          })
+          .in("id", cartIds);
+
+        if (updateError) {
+          console.error("Error updating carts to RECOVERED:", updateError);
+          return new Response(JSON.stringify({ success: false, error: updateError.message }), { status: 500 });
+        }
+        
+        console.log(`Successfully recovered ${cartIds.length} carts.`);
+      } else {
+        console.log("No matching abandoned carts found to recover.");
+      }
+
+      return new Response(JSON.stringify({ success: true, action: "recovered" }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+
+    // ==========================================
     // 5. EXTRACT SHOPIFY DATA
     // ==========================================
 
@@ -210,29 +274,31 @@ Deno.serve(async (req: Request) => {
 
 
     const customerName =
-      customer.name ?? null;
-
-
+      body.customerName ?? customer.name ?? null;
 
     const customerEmail =
-      customer.email ?? null;
+      body.email ?? customer.email ?? null;
 
+    let customerPhone =
+      body.phoneNumber ?? body.shippingPhone ?? body.billingPhone ?? customer.phone ?? null;
 
+    if (customerPhone === "N/A" || customerPhone?.trim() === "") {
+        customerPhone = null;
+    }
 
-    const customerPhone =
-      customer.phone ?? null;
 
 
 
     const customerAddress =
       body.customerAddress ?? {};
 
+    let checkoutName =
+      body.cartId ?? body.checkout_token ?? body.checkoutToken ?? body.checkoutName ?? null;
 
-
-    const checkoutName =
-      body.checkoutName ?? null;
-
-
+    // If it's a global ID like gid://shopify/AbandonedCheckout/38790, extract the ID part
+    if (checkoutName && checkoutName.includes("gid://")) {
+        checkoutName = checkoutName.split("/").pop() ?? checkoutName;
+    }
 
     const checkoutUrl =
       body.checkoutUrl ?? null;
@@ -242,23 +308,27 @@ Deno.serve(async (req: Request) => {
     const cartValue =
       Number(body.cartValue ?? 0);
 
-
-
+    // If products is sent as the new string format (productsInCart), wrap it in an array
     const products =
-      body.products ?? [];
+      body.products ?? (body.productsInCart && body.productsInCart !== "N/A" ? [{ title: body.productsInCart.trim(), quantity: 1 }] : []);
 
-
-
-    const abandonedAt =
+    let abandonedAt =
       body.createdAt
         ? body.createdAt
         : getISTTimestamp();
 
+    if (body.date && body.time) {
+        abandonedAt = `${body.date}T${body.time}Z`;
+    }
 
-    const discountCodes =
+    let discountCodes =
       body.discountCodes
         ? [body.discountCodes]
         : [];
+
+    if (body.discountCode && body.discountCode !== "N/A") {
+        discountCodes = [body.discountCode];
+    }
 
 
 

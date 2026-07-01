@@ -72,6 +72,24 @@ export default function AgentPerformancePage() {
     last_month: "Last 30 Days"
   };
 
+  const handleExport = () => {
+    if (!performers || performers.length === 0 || performers[0].name === "No data available") return;
+    const csvHeader = "Rank,Agent Name,Conversion Rate,Revenue Recovered,Total Carts\n";
+    const csvContent = performers.map(p => 
+      `${p.rank},"${p.name}","${p.conv}","${p.rev.replace(/,/g, '')}",${p.carts}`
+    ).join("\n");
+    
+    const blob = new Blob([csvHeader + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", `agent_performance_${timeFilter}_${new Date().getTime()}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="flex flex-col gap-6 pb-12 h-full">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -91,7 +109,7 @@ export default function AgentPerformancePage() {
               <SelectItem value="last_month">Last 30 Days</SelectItem>
             </SelectContent>
           </Select>
-          <Button variant="outline" className="h-10 px-4 font-bold rounded-lg shadow-sm">
+          <Button variant="outline" className="h-10 px-4 font-bold rounded-lg shadow-sm" onClick={handleExport}>
             Download Report
           </Button>
         </div>

@@ -85,18 +85,7 @@ export function AppSidebar() {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {isAdmin && (
-                <SidebarMenuItem>
-                  <SidebarMenuButton 
-                    render={<Link href="/customers" className="flex items-center gap-3" />} 
-                    isActive={pathname === "/customers"}
-                  >
-                    <Users className="h-4 w-4" />
-                    <span className="font-medium text-[13px]">Customers</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )}
-                <SidebarMenuItem>
+              <SidebarMenuItem>
                   <SidebarMenuButton 
                     render={<Link href="/agent/recovery" className="flex items-center gap-3" />} 
                     isActive={pathname === "/agent/recovery"}

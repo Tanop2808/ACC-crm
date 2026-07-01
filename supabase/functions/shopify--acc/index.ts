@@ -215,8 +215,8 @@ Deno.serve(async (req: Request) => {
         return new Response(JSON.stringify({ success: false, error: "Missing identifying fields" }), { status: 400 });
       }
 
-      const todayStart = new Date();
-      todayStart.setUTCHours(0, 0, 0, 0);
+      const lookbackDate = new Date();
+      lookbackDate.setDate(lookbackDate.getDate() - 7);
 
       let orQueryParts = [];
       if (orderCheckoutToken) orQueryParts.push(`checkoutName.eq.${orderCheckoutToken}`);
@@ -228,7 +228,7 @@ Deno.serve(async (req: Request) => {
         .from("shopify_acc_table")
         .select("id")
         .eq("brand_id", integration.brand_id)
-        .gte("abandoned_at", todayStart.toISOString())
+        .gte("abandoned_at", lookbackDate.toISOString())
         .in("cart_status", ["ABANDONED"])
         .or(orQuery);
 

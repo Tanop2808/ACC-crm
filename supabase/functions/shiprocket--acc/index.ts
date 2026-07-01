@@ -140,6 +140,32 @@ Deno.serve(async (req: Request) => {
       existingRecord = tokenMatch;
     }
 
+    // Fallback to email or phone if cartId/token failed to find a match (e.g., payment webhook missing cart_id)
+    if (!existingRecord && (email || phone)) {
+      const lookbackDate = new Date();
+      lookbackDate.setDate(lookbackDate.getDate() - 7);
+
+      let orQueryParts = [];
+      if (email) orQueryParts.push(`customer_email.eq.${email}`);
+      if (phone) orQueryParts.push(`customer_phone.eq.${phone}`);
+      const orQuery = orQueryParts.join(',');
+
+      const { data: contactMatch, error: contactError } = await supabase
+        .from("shiprocket_acc_table")
+        .select("*")
+        .eq("brand_id", integration.brand_id)
+        .gte("abandoned_at", lookbackDate.toISOString())
+        .or(orQuery)
+        .order("abandoned_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (contactError) {
+        console.log("Contact fallback lookup error:", contactError);
+      }
+      existingRecord = contactMatch;
+    }
+
     // ==========================================
     // 6. IF EXISTING RECORD UPDATE
     // ==========================================
@@ -148,6 +174,28 @@ Deno.serve(async (req: Request) => {
       body.latest_stage === "ORDER_PLACED" || 
       body.latest_stage === "ORDER_COMPLETED" ||
       body.payment_status?.toUpperCase() === "SUCCESS";
+
+    // ==========================================
+    // 6.1 LOG ORDER CREATION PAYLOAD
+    // ==========================================
+    if (isRecovered) {
+      const { error: logError } = await supabase
+        .from("shiprocket_order_creation_table")
+        .insert({
+          integration_id: integration?.id || null,
+          brand_id: integration?.brand_id || null,
+          cart_id: cartId,
+          cart_token: cartToken,
+          customer_email: email,
+          customer_phone: phone,
+          event_type: body.latest_stage || "ORDER_PLACED",
+          raw_payload: body
+        });
+      
+      if (logError) {
+        console.log("Failed to log order creation payload:", logError);
+      }
+    }
 
     if (existingRecord) {
       console.log("Existing Customer Found. Updating Record:", existingRecord.id);
@@ -229,6 +277,24 @@ Deno.serve(async (req: Request) => {
           id: updatedData.id,
           brand_id: integration.brand_id,
           provider_id: integration.provider_id
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        }
+      );
+    }
+
+    // ==========================================
+    // 6.2 IGNORE DIRECT PURCHASES
+    // ==========================================
+    if (!existingRecord && isRecovered) {
+      console.log("Direct purchase detected (no abandoned cart found). Ignoring for ACC queue.");
+      return new Response(
+        JSON.stringify({
+          success: true,
+          action: "ignored_direct_purchase",
+          message: "Order placed directly without an abandoned cart record."
         }),
         {
           status: 200,

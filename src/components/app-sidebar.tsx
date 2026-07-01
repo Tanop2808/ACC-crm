@@ -136,15 +136,6 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
 
-                <SidebarMenuItem>
-                  <SidebarMenuButton 
-                    render={<Link href="/webhook-logs" className="flex items-center gap-3" />} 
-                    isActive={pathname === "/webhook-logs"}
-                  >
-                    <FileText className="h-4 w-4" />
-                    <span className="font-medium text-[13px]">Webhook Terminal</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>

@@ -147,7 +147,7 @@ export async function getAssignedCarts(
 
   if (filters.listTab) {
     if (filters.listTab === 'calls') {
-      query = query.is('call_status', null);
+      query = query.is('call_status', null).or('current_status.is.null,current_status.neq.recovered');
     } else if (filters.listTab === 'interested') {
       query = query.eq('current_status', 'interested');
     } else if (filters.listTab === 'attempted') {

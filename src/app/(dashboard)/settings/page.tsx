@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { User, ShieldCheck, Loader2, Plus, Trash2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { getAdmins, addAdmin, removeAdmin, UserRole } from "@/services/adminService";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function SettingsPage() {
   const [name, setName] = useState("Loading...");
@@ -26,6 +27,7 @@ export default function SettingsPage() {
   // Preferences State
   const [compactDensity, setCompactDensity] = useState(false);
   const [audioAlerts, setAudioAlerts] = useState(false);
+  const [timezone, setTimezone] = useState("IST (UTC+05:30)");
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
 
@@ -72,6 +74,7 @@ export default function SettingsPage() {
       
       setCompactDensity(localStorage.getItem('pref_compact_density') === 'true');
       setAudioAlerts(localStorage.getItem('pref_audio_alerts') === 'true');
+      setTimezone(localStorage.getItem('pref_timezone') || 'IST (UTC+05:30)');
     }
     fetchUser();
   }, []);
@@ -133,6 +136,7 @@ export default function SettingsPage() {
     
     localStorage.setItem('pref_compact_density', compactDensity.toString());
     localStorage.setItem('pref_audio_alerts', audioAlerts.toString());
+    localStorage.setItem('pref_timezone', timezone);
     
     if (isAdminMode) {
       localStorage.setItem('admin_name', name);
@@ -249,7 +253,19 @@ export default function SettingsPage() {
                       <p className="font-bold text-[14px]">Timezone</p>
                       <p className="text-[12px] text-muted-foreground">Set your local timezone for metrics.</p>
                     </div>
-                    <Button variant="outline" size="sm" className="font-bold font-mono">IST (UTC+05:30)</Button>
+                    <Select value={timezone} onValueChange={setTimezone}>
+                      <SelectTrigger className="w-[180px] h-8 text-[12px] font-bold font-mono">
+                        <SelectValue placeholder="Select Timezone" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="PST (UTC-08:00)">PST (UTC-08:00)</SelectItem>
+                        <SelectItem value="EST (UTC-05:00)">EST (UTC-05:00)</SelectItem>
+                        <SelectItem value="UTC (UTC+00:00)">UTC (UTC+00:00)</SelectItem>
+                        <SelectItem value="BST (UTC+01:00)">BST (UTC+01:00)</SelectItem>
+                        <SelectItem value="IST (UTC+05:30)">IST (UTC+05:30)</SelectItem>
+                        <SelectItem value="AEST (UTC+10:00)">AEST (UTC+10:00)</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </CardContent>
               </Card>

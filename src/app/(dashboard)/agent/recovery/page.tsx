@@ -63,6 +63,22 @@ export default function AbandonedCartsPage() {
   const [totalCount, setTotalCount] = useState(0);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [timeFilter, setTimeFilter] = useState("all_time");
+  const [selectedForExport, setSelectedForExport] = useState<Set<string>>(new Set());
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedForExport(new Set(customers.map(c => c.id)));
+    } else {
+      setSelectedForExport(new Set());
+    }
+  };
+
+  const handleSelectRow = (id: string, checked: boolean) => {
+    const newSet = new Set(selectedForExport);
+    if (checked) newSet.add(id);
+    else newSet.delete(id);
+    setSelectedForExport(newSet);
+  };
 
   const handleTimeFilterChange = (val: string | null) => {
     const safeVal = val || 'all_time';
@@ -92,9 +108,13 @@ export default function AbandonedCartsPage() {
   const pageSize = 50;
   
   const handleExport = () => {
-    if (!customers || customers.length === 0) return;
+    const exportData = selectedForExport.size > 0 
+      ? customers.filter(c => selectedForExport.has(c.id)) 
+      : customers;
+
+    if (!exportData || exportData.length === 0) return;
     const csvHeader = "Customer Name,Email,Phone,Cart Value,Abandoned At,Status,Brand ID\n";
-    const csvContent = customers.map(c => 
+    const csvContent = exportData.map(c => 
       `"${c.customer_name || ''}","${c.customer_email || ''}","${c.customer_phone || ''}",${c.cart_value || 0},"${c.abandoned_at || ''}","${c.current_status || ''}","${c.brand_id || ''}"`
     ).join("\n");
     
@@ -118,6 +138,7 @@ export default function AbandonedCartsPage() {
     
     if (data) {
       setCustomers(data);
+      setSelectedForExport(new Set());
       if (data.length > 0 && !data.find(c => c.id === selectedCartId)) {
         setSelectedCartId(data[0].id);
       } else if (data.length === 0) {
@@ -423,10 +444,10 @@ export default function AbandonedCartsPage() {
       <div className="p-8 flex-1 flex flex-col max-w-[1800px] w-full mx-auto">
         
         {/* 2-Pane Unified Card */}
-        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px] flex-1 overflow-hidden min-h-[700px]">
+        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px] flex-1 min-h-[700px]">
           
           {/* Middle Pane - List */}
-          <div className="flex flex-col min-w-0 min-h-0 overflow-hidden border-r border-slate-200">
+          <div className="flex flex-col min-w-0 min-h-0 overflow-hidden border-r border-slate-200 rounded-l-2xl">
             {/* List Tabs + Filter */}
             <div className="flex items-center border-b border-slate-200 px-4 bg-white shrink-0">
               <Button
@@ -469,7 +490,7 @@ export default function AbandonedCartsPage() {
               <div className="min-w-[720px]">
             {activeListTab === 'recovered' ? (
               <div className="grid grid-cols-12 gap-4 px-6 py-4 border-b border-slate-100 bg-white">
-                <div className="col-span-1 flex items-center justify-center"><Checkbox className="w-4 h-4 rounded" /></div>
+                <div className="col-span-1 flex items-center justify-center"><Checkbox checked={selectedForExport.size === customers.length && customers.length > 0} onCheckedChange={(c) => handleSelectAll(c as boolean)} className="w-4 h-4 rounded" /></div>
                 <div className="col-span-3 text-[12px] font-bold text-slate-500">Customer</div>
                 <div className="col-span-3 text-[12px] font-bold text-slate-500">Order ID</div>
                 <div className="col-span-2 text-[12px] font-bold text-slate-500">Amount</div>
@@ -477,7 +498,7 @@ export default function AbandonedCartsPage() {
               </div>
             ) : (
               <div className="grid grid-cols-12 gap-4 px-6 py-4 border-b border-slate-100 bg-white">
-                <div className="col-span-1 flex items-center justify-center"><Checkbox className="w-4 h-4 rounded" /></div>
+                <div className="col-span-1 flex items-center justify-center"><Checkbox checked={selectedForExport.size === customers.length && customers.length > 0} onCheckedChange={(c) => handleSelectAll(c as boolean)} className="w-4 h-4 rounded" /></div>
                 <div className="col-span-3 text-[12px] font-bold text-slate-500">Customer</div>
                 <div className="col-span-2 text-[12px] font-bold text-slate-500">Cart Value</div>
                 <div className="col-span-2 text-[12px] font-bold text-slate-500">Abandoned</div>
@@ -501,7 +522,12 @@ export default function AbandonedCartsPage() {
                     }`}
                   >
                     <div className="col-span-1 flex items-center justify-center">
-                      <Checkbox checked={isSelected} className={isSelected ? "data-[state=checked]:bg-[#7B5EE4] data-[state=checked]:border-[#7B5EE4]" : ""} />
+                      <Checkbox 
+                        checked={selectedForExport.has(c.id)} 
+                        onCheckedChange={(checked) => handleSelectRow(c.id, checked as boolean)}
+                        onClick={(e) => e.stopPropagation()}
+                        className={selectedForExport.has(c.id) ? "data-[state=checked]:bg-[#7B5EE4] data-[state=checked]:border-[#7B5EE4]" : ""} 
+                      />
                     </div>
                     
                     {activeListTab === 'recovered' ? (
@@ -519,7 +545,15 @@ export default function AbandonedCartsPage() {
                            <p className="text-[13px] font-medium text-slate-900 truncate font-mono">
                              {c.source === 'shiprocket' ? (c.cart_id || 'N/A') : (c.checkout_name || c.cart_id || 'N/A')}
                            </p>
-                           <p className="text-[11px] font-medium text-slate-500">{c.source === 'shiprocket' ? 'Shiprocket' : 'Shopify'}</p>
+                           <p className="text-[11px] font-medium text-slate-500 mb-1">{c.source === 'shiprocket' ? 'Shiprocket' : 'Shopify'}</p>
+                           {c.current_status && c.current_status !== 'calls' && (
+                             <Badge className="shrink-0 border-none text-[10px] font-bold px-2 py-0.5 rounded-sm bg-[#F4F1FD] text-[#7B5EE4]">
+                               {c.current_status === 'attempted' ? 'Attempted (No Answer)' :
+                                c.current_status === 'not_interested' ? 'Not Interested' :
+                                c.current_status === 'completed' ? 'Converted' :
+                                c.current_status.charAt(0).toUpperCase() + c.current_status.slice(1)}
+                             </Badge>
+                           )}
                         </div>
                         <div className="col-span-2">
                           <p className="text-[14px] font-bold text-slate-900">{formatCurrency(c.cart_value)}</p>
@@ -539,7 +573,15 @@ export default function AbandonedCartsPage() {
                           <div className="min-w-0">
                             <p className="text-[13px] font-bold text-slate-900 truncate">{c.customer_name || 'Unknown'}</p>
                             <p className="text-[12px] font-medium text-slate-500 truncate">{c.customer_phone || c.customer_email}</p>
-                            <p className="text-[11px] font-medium text-slate-400 truncate font-mono">ID: {c.checkout_name || c.cart_id}</p>
+                            <p className="text-[11px] font-medium text-slate-400 truncate font-mono mb-1">ID: {c.checkout_name || c.cart_id}</p>
+                            {c.current_status && c.current_status !== 'calls' && (
+                              <Badge className="shrink-0 border-none text-[10px] font-bold px-2 py-0.5 rounded-sm bg-[#F4F1FD] text-[#7B5EE4]">
+                                {c.current_status === 'attempted' ? 'Attempted (No Answer)' :
+                                 c.current_status === 'not_interested' ? 'Not Interested' :
+                                 c.current_status === 'completed' ? 'Converted' :
+                                 c.current_status.charAt(0).toUpperCase() + c.current_status.slice(1)}
+                              </Badge>
+                            )}
                           </div>
                         </div>
                         <div className="col-span-2">
@@ -552,14 +594,6 @@ export default function AbandonedCartsPage() {
                         <div className="col-span-3">
                           <p className="text-[13px] font-bold text-slate-900 truncate">{c.agent_name || 'Unassigned'}</p>
                           <p className="text-[12px] font-medium text-slate-500 truncate">{c.assignment_status || 'Pending'}</p>
-                          {c.current_status && c.current_status !== 'calls' && (
-                            <Badge className="mt-1 shrink-0 border-none text-[10px] font-bold px-2 py-0.5 rounded-sm bg-[#F4F1FD] text-[#7B5EE4]">
-                              {c.current_status === 'attempted' ? 'Attempted (No Answer)' :
-                               c.current_status === 'not_interested' ? 'Not Interested' :
-                               c.current_status === 'completed' ? 'Converted' :
-                               c.current_status.charAt(0).toUpperCase() + c.current_status.slice(1)}
-                            </Badge>
-                          )}
                         </div>
                         <div className="col-span-1 flex items-center justify-center gap-2">
                           <button 
@@ -610,7 +644,7 @@ export default function AbandonedCartsPage() {
           </div>
 
           {/* Right Pane - Details */}
-          <div className="flex flex-col bg-white overflow-hidden min-h-0">
+          <div className="flex flex-col bg-white overflow-y-auto min-h-0 sticky top-6 self-start max-h-[calc(100vh-3rem)] rounded-r-2xl w-full">
             {selectedCustomer ? (
               <>
                 {/* Profile Block */}
@@ -672,7 +706,18 @@ export default function AbandonedCartsPage() {
                       onValueChange={(val) => setPendingRecoveryStatus(val || "")}
                     >
                       <SelectTrigger className="w-[180px] bg-white border-slate-200 text-slate-700 text-[13px] font-bold">
-                        <SelectValue placeholder="Select Status" />
+                        <SelectValue placeholder="Select Status">
+                          {(() => {
+                            const s = pendingRecoveryStatus || (['calls', 'interested', 'attempted', 'completed', 'not_interested', 'recovered'].includes(selectedCustomer.current_status || '') ? selectedCustomer.current_status : '');
+                            if (s === 'calls') return 'Addressable';
+                            if (s === 'attempted') return 'Attempted (No Answer)';
+                            if (s === 'recovered') return 'Recovered';
+                            if (s === 'interested') return 'Interested';
+                            if (s === 'not_interested') return 'Not Interested';
+                            if (s === 'completed') return 'Converted';
+                            return undefined;
+                          })()}
+                        </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="calls">Addressable</SelectItem>
@@ -939,7 +984,7 @@ export default function AbandonedCartsPage() {
 
                   {activeDetailTab === 'notes' && (
                     <div className="space-y-4">
-                      <h3 className="font-bold text-[16px] text-slate-900 mb-2">Internal Notes</h3>
+                      <h3 className="font-bold text-[16px] text-slate-900 mb-2">Call Status</h3>
                       
                       <div className="flex flex-col gap-3 mb-6 bg-slate-50 p-4 rounded-xl border border-slate-100">
                         <Select value={noteCallStatus} onValueChange={(val) => setNoteCallStatus(val || "")}>

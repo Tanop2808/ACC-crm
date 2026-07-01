@@ -310,7 +310,7 @@ Deno.serve(async (req: Request) => {
 
     // If products is sent as the new string format (productsInCart), wrap it in an array
     const products =
-      body.products ?? (body.productsInCart && body.productsInCart !== "N/A" ? [{ title: body.productsInCart.trim(), quantity: 1 }] : []);
+      body.products ?? (body.productsInCart && body.productsInCart !== "N/A" ? [{ product: body.productsInCart.trim(), quantity: 1 }] : []);
 
     let abandonedAt =
       body.createdAt

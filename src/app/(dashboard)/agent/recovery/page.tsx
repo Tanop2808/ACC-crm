@@ -218,12 +218,8 @@ export default function AbandonedCartsPage() {
       finalNote = noteInput ? `[${noteCallStatus}] ${noteInput}` : `[${noteCallStatus}]`;
     }
     
-    // Also update call_status if it's set
-    if (noteCallStatus) {
-      await (supabase as any).from(selectedCustomer.source === 'shopify' ? 'shopify_acc_table' : 'shiprocket_acc_table')
-        .update({ call_status: noteCallStatus })
-        .eq('id', selectedCustomer.id);
-    }
+    // Intentionally not updating the overall call_status here to prevent the cart from jumping sections.
+    // The call status will just be recorded as text inside the note prefix.
 
     const { error } = await addNote(
       selectedCustomer.id, 

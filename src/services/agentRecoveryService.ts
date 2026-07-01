@@ -413,9 +413,6 @@ export async function updateStatusAndNote(cartId: string, assignmentId: string, 
     const currentLogs = Array.isArray((cartData as any)?.activity_logs) ? (cartData as any).activity_logs : [];
     
     let activityText = `Status changed to ${newStatus.replace(/_/g, ' ')}`;
-    if (noteText) {
-      activityText += ` - Note: ${noteText}`;
-    }
 
     const newLog = {
       type: 'status_update',
@@ -444,7 +441,7 @@ export async function updateStatusAndNote(cartId: string, assignmentId: string, 
         assignment_id: assignmentId,
         agent_id: agentId,
         activity_type: 'STATUS_AND_NOTE',
-        description: `Status changed to ${newStatus}. Note: ${noteText}`,
+        description: `Status changed to ${newStatus}`,
         metadata: { old_status: oldStatus, new_status: newStatus, note: noteText }
       } as never);
       

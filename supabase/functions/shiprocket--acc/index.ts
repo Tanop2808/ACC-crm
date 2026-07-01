@@ -91,9 +91,8 @@ Deno.serve(async (req: Request) => {
 
     const customerName = [firstName, lastName].filter(Boolean).join(" ") || null;
     const email = body.email ?? null;
-    const phone = body.phone_number ?? null;
-
     const address = body.shipping_address ?? body.billing_address ?? {};
+    const phone = body.phone_number ?? body.phone ?? address.phone ?? address.phone_number ?? null;
     const cartId = body.cart_id ?? null;
     const cartToken = body.cart_token ?? null;
     const checkoutUrl = body.checkout_url ?? null;
@@ -106,7 +105,7 @@ Deno.serve(async (req: Request) => {
     // ==========================================
     // 5. FIND EXISTING CUSTOMER CART
     // ==========================================
-       // ==========================================
+    // ==========================================
     // 5. FIND EXISTING CUSTOMER CART (By Cart ID)
     // ==========================================
     let existingRecord = null;
@@ -124,7 +123,7 @@ Deno.serve(async (req: Request) => {
         console.log("Cart lookup error:", cartError);
       }
       existingRecord = cartMatch;
-    } 
+    }
     // Fallback just in case Shiprocket sends token instead of ID
     else if (cartToken) {
       const { data: tokenMatch, error: tokenError } = await supabase
@@ -144,6 +143,12 @@ Deno.serve(async (req: Request) => {
     // ==========================================
     // 6. IF EXISTING RECORD UPDATE
     // ==========================================
+    const isRecovered = 
+      body.latest_stage === "PAYMENT_RECEIVED" || 
+      body.latest_stage === "ORDER_PLACED" || 
+      body.latest_stage === "ORDER_COMPLETED" ||
+      body.payment_status?.toUpperCase() === "SUCCESS";
+
     if (existingRecord) {
       console.log("Existing Customer Found. Updating Record:", existingRecord.id);
 
@@ -171,7 +176,10 @@ Deno.serve(async (req: Request) => {
           checkout_url: checkoutUrl ?? existingRecord.checkout_url,
           cart_value: cartValue ?? existingRecord.cart_value,
           currency: body.currency ?? existingRecord.currency,
-          cart_status: "ABANDONED",
+          cart_status: isRecovered ? "RECOVERED" : "ABANDONED",
+          current_status: isRecovered ? "recovered" : undefined,
+          follow_up: isRecovered ? false : undefined,
+          notes: isRecovered ? "[System] Order was successfully placed via Fastrr." : undefined,
           products: products,
           payment_status: body.payment_status ?? existingRecord.payment_status,
           payment_method: body.payment_method ?? existingRecord.payment_method,
@@ -203,7 +211,7 @@ Deno.serve(async (req: Request) => {
             p_cart_id: updatedData.id,
             p_provider_table: 'shiprocket_acc_table'
           });
-          
+
           if (assignError) {
             console.error("Round Robin Assignment Error:", assignError);
           } else if (agentId) {
@@ -265,6 +273,13 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    if (isRecovered) {
+      autoCurrentStatus = "recovered";
+      autoCallStatus = null;
+      autoFollowUp = false;
+      autoNotes = "[System] Order was successfully placed via Fastrr.";
+    }
+
     const { data: newRecord, error: insertError } = await supabase
       .from("shiprocket_acc_table")
       .insert({
@@ -289,7 +304,7 @@ Deno.serve(async (req: Request) => {
         checkout_url: checkoutUrl,
         cart_value: cartValue,
         currency: body.currency ?? "INR",
-        cart_status: "ABANDONED",
+        cart_status: isRecovered ? "RECOVERED" : "ABANDONED",
         abandoned_at: abandonedAt,
         products: products,
         payment_status: body.payment_status ?? null,
@@ -326,7 +341,7 @@ Deno.serve(async (req: Request) => {
         p_cart_id: newRecord.id,
         p_provider_table: 'shiprocket_acc_table'
       });
-      
+
       if (assignError) {
         console.error("Round Robin Assignment Error:", assignError);
       } else if (agentId) {

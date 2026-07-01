@@ -5,13 +5,13 @@ declare const Deno: any;
 
 Deno.serve(async (req: Request) => {
 
-// Helper to get current time in IST (UTC+5:30) as a string without timezone
-function getISTTimestamp() {
-  const date = new Date();
-  const istOffset = 5.5 * 60 * 60 * 1000;
-  const istDate = new Date(date.getTime() + istOffset);
-  return istDate.toISOString().replace('Z', '');
-}
+  // Helper to get current time in IST (UTC+5:30) as a string without timezone
+  function getISTTimestamp() {
+    const date = new Date();
+    const istOffset = 5.5 * 60 * 60 * 1000;
+    const istDate = new Date(date.getTime() + istOffset);
+    return istDate.toISOString().replace('Z', '');
+  }
 
   try {
 
@@ -36,32 +36,33 @@ function getISTTimestamp() {
     // ==========================================
 
 
-    const integrationToken =
-      req.headers
-      .get("x-integration-token")
-      ?.trim();
+    let integrationToken = req.headers.get("x-integration-token")?.trim();
+    if (!integrationToken) {
+      const url = new URL(req.url);
+      integrationToken = url.searchParams.get("token")?.trim();
+    }
 
 
 
-    if(!integrationToken){
+    if (!integrationToken) {
 
 
       return new Response(
 
         JSON.stringify({
 
-          success:false,
+          success: false,
 
-          error:"Missing integration token"
+          error: "Missing integration token"
 
         }),
 
         {
 
-          status:401,
+          status: 401,
 
-          headers:{
-            "Content-Type":"application/json"
+          headers: {
+            "Content-Type": "application/json"
           }
 
         }
@@ -104,16 +105,16 @@ function getISTTimestamp() {
 
     const {
 
-   data:integration,
+      data: integration,
 
-    error:integrationError
+      error: integrationError
 
-     } = await supabase
+    } = await supabase
 
-   .from("integrations")
+      .from("integrations")
 
-   .select(
-    `
+      .select(
+        `
     id,
     brand_id,
     provider_id,
@@ -121,30 +122,30 @@ function getISTTimestamp() {
       name
     )
     `
-    )
+      )
 
-   .eq(
-    "integration_token",
-    integrationToken
-   )
+      .eq(
+        "integration_token",
+        integrationToken
+      )
 
-   .eq(
-    "status",
-    "ACTIVE"
-   )
+      .eq(
+        "status",
+        "ACTIVE"
+      )
 
-   .maybeSingle(); 
-
-     
+      .maybeSingle();
 
 
 
 
 
-    if(
+
+
+    if (
       integrationError ||
       !integration
-    ){
+    ) {
 
 
       console.log(
@@ -158,18 +159,18 @@ function getISTTimestamp() {
 
         JSON.stringify({
 
-          success:false,
+          success: false,
 
-          error:"Invalid integration token"
+          error: "Invalid integration token"
 
         }),
 
         {
 
-          status:401,
+          status: 401,
 
-          headers:{
-            "Content-Type":"application/json"
+          headers: {
+            "Content-Type": "application/json"
           }
 
         }
@@ -183,21 +184,84 @@ function getISTTimestamp() {
 
 
 
-     console.log(
+    console.log(
       "Integration Found:",
       integration
-     );
-     const brandName =
-     integration.brands?.name ?? null;
+    );
+    const brandName =
+      integration.brands?.name ?? null;
 
 
-      console.log(
-       "Brand Name:",
-         brandName
-         );
+    console.log(
+      "Brand Name:",
+      brandName
+    );
 
 
 
+
+    // ==========================================
+    // 5. HANDLE ORDER CREATED (RECOVERY)
+    // ==========================================
+    const shopifyTopic = req.headers.get("x-shopify-topic")?.trim();
+
+    if (body.event_type === "order_created" || shopifyTopic === "orders/create") {
+      console.log("Processing Order Created Event...");
+      const orderCheckoutToken = body.checkout_token ?? body.cart_token ?? body.checkoutToken ?? body.checkoutId ?? null;
+      const orderEmail = body.email ?? body.customer?.email ?? null;
+      const orderPhone = body.phone ?? body.customer?.phone ?? null;
+
+      if (!orderCheckoutToken && !orderEmail && !orderPhone) {
+        return new Response(JSON.stringify({ success: false, error: "Missing identifying fields" }), { status: 400 });
+      }
+
+      const todayStart = new Date();
+      todayStart.setUTCHours(0, 0, 0, 0);
+
+      let orQueryParts = [];
+      if (orderCheckoutToken) orQueryParts.push(`checkoutName.eq.${orderCheckoutToken}`);
+      if (orderEmail) orQueryParts.push(`customer_email.eq.${orderEmail}`);
+      if (orderPhone) orQueryParts.push(`customer_phone.eq.${orderPhone}`);
+      const orQuery = orQueryParts.join(',');
+
+      const { data: abandonedCarts, error: fetchError } = await supabase
+        .from("shopify_acc_table")
+        .select("id")
+        .eq("brand_id", integration.brand_id)
+        .gte("abandoned_at", todayStart.toISOString())
+        .in("cart_status", ["ABANDONED"])
+        .or(orQuery);
+
+      if (fetchError) {
+        console.error("Error fetching abandoned carts for recovery:", fetchError);
+        return new Response(JSON.stringify({ success: false, error: fetchError.message }), { status: 500 });
+      }
+
+      if (abandonedCarts && abandonedCarts.length > 0) {
+        const cartIds = abandonedCarts.map(cart => cart.id);
+        const { error: updateError } = await supabase
+          .from("shopify_acc_table")
+          .update({
+            cart_status: "RECOVERED",
+            current_status: "recovered",
+            follow_up: false,
+            notes: "[System] Order was placed, cart recovered.",
+            updated_at: getISTTimestamp()
+          })
+          .in("id", cartIds);
+
+        if (updateError) {
+          console.error("Error updating carts to RECOVERED:", updateError);
+          return new Response(JSON.stringify({ success: false, error: updateError.message }), { status: 500 });
+        }
+        
+        console.log(`Successfully recovered ${cartIds.length} carts.`);
+      } else {
+        console.log("No matching abandoned carts found to recover.");
+      }
+
+      return new Response(JSON.stringify({ success: true, action: "recovered" }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
 
     // ==========================================
     // 5. EXTRACT SHOPIFY DATA
@@ -210,29 +274,31 @@ function getISTTimestamp() {
 
 
     const customerName =
-      customer.name ?? null;
-
-
+      body.customerName ?? customer.name ?? null;
 
     const customerEmail =
-      customer.email ?? null;
+      body.email ?? customer.email ?? null;
 
+    let customerPhone =
+      body.phoneNumber ?? body.shippingPhone ?? body.billingPhone ?? customer.phone ?? null;
 
+    if (customerPhone === "N/A" || customerPhone?.trim() === "") {
+        customerPhone = null;
+    }
 
-    const customerPhone =
-      customer.phone ?? null;
 
 
 
     const customerAddress =
       body.customerAddress ?? {};
 
+    let checkoutName =
+      body.cartId ?? body.checkout_token ?? body.checkoutToken ?? body.checkoutName ?? null;
 
-
-    const checkoutName =
-      body.checkoutName ?? null;
-
-
+    // If it's a global ID like gid://shopify/AbandonedCheckout/38790, extract the ID part
+    if (checkoutName && checkoutName.includes("gid://")) {
+        checkoutName = checkoutName.split("/").pop() ?? checkoutName;
+    }
 
     const checkoutUrl =
       body.checkoutUrl ?? null;
@@ -242,23 +308,27 @@ function getISTTimestamp() {
     const cartValue =
       Number(body.cartValue ?? 0);
 
-
-
+    // If products is sent as the new string format (productsInCart), wrap it in an array
     const products =
-      body.products ?? [];
+      body.products ?? (body.productsInCart && body.productsInCart !== "N/A" ? [{ product: body.productsInCart.trim(), quantity: 1 }] : []);
 
-
-
-    const abandonedAt =
+    let abandonedAt =
       body.createdAt
-      ? body.createdAt
-      : getISTTimestamp();
-       
+        ? body.createdAt
+        : getISTTimestamp();
 
-    const discountCodes =
-       body.discountCodes
-       ? [body.discountCodes]
-       : [];
+    if (body.date && body.time) {
+        abandonedAt = `${body.date}T${body.time}Z`;
+    }
+
+    let discountCodes =
+      body.discountCodes
+        ? [body.discountCodes]
+        : [];
+
+    if (body.discountCode && body.discountCode !== "N/A") {
+        discountCodes = [body.discountCode];
+    }
 
 
 
@@ -279,13 +349,13 @@ function getISTTimestamp() {
     // 6. FIND EXISTING CUSTOMER CART (By Cart ID)
     // ==========================================
 
-    let existingRecord:any = null;
+    let existingRecord: any = null;
 
-    if(checkoutName){
+    if (checkoutName) {
 
       const {
-        data:cartMatch,
-        error:cartError
+        data: cartMatch,
+        error: cartError
       } = await supabase
         .from("shopify_acc_table")
         .select("*")
@@ -294,7 +364,7 @@ function getISTTimestamp() {
         .limit(1)
         .maybeSingle();
 
-      if(cartError){
+      if (cartError) {
         console.log(
           "Cart lookup error:",
           cartError
@@ -304,12 +374,12 @@ function getISTTimestamp() {
       existingRecord = cartMatch;
 
     }
-        // ==========================================
+    // ==========================================
     // 7. UPDATE EXISTING CART RECORD
     // ==========================================
 
 
-    if(existingRecord){
+    if (existingRecord) {
 
 
       console.log(
@@ -321,9 +391,9 @@ function getISTTimestamp() {
 
       const {
 
-        data:updatedData,
+        data: updatedData,
 
-        error:updateError
+        error: updateError
 
       } = await supabase
 
@@ -338,12 +408,12 @@ function getISTTimestamp() {
           provider_id:
             integration.provider_id,
 
-            brand_id:
+          brand_id:
             integration.brand_id,
 
 
-            brand_name:
-              brandName,
+          brand_name:
+            brandName,
 
 
           webhook_id:
@@ -429,18 +499,18 @@ function getISTTimestamp() {
             existingRecord.cart_value,
 
 
-         products:
+          products:
             products,
 
 
-        discount_codes:
-          discountCodes.length > 0
-          ? discountCodes
-           : existingRecord.discount_codes,
+          discount_codes:
+            discountCodes.length > 0
+              ? discountCodes
+              : existingRecord.discount_codes,
 
 
-           abandoned_at:
-           abandonedAt,
+          abandoned_at:
+            abandonedAt,
 
 
           cart_status:
@@ -466,7 +536,7 @@ function getISTTimestamp() {
 
 
 
-      if(updateError){
+      if (updateError) {
 
         console.log(
           "Update Error:",
@@ -488,7 +558,7 @@ function getISTTimestamp() {
             p_cart_id: updatedData.id,
             p_provider_table: 'shopify_acc_table'
           });
-          
+
           if (assignError) {
             console.error("Round Robin Assignment Error:", assignError);
           } else if (agentId) {
@@ -503,11 +573,11 @@ function getISTTimestamp() {
 
         JSON.stringify({
 
-          success:true,
+          success: true,
 
-          action:"updated",
+          action: "updated",
 
-          id:updatedData.id,
+          id: updatedData.id,
 
           brand_id:
             integration.brand_id,
@@ -520,10 +590,10 @@ function getISTTimestamp() {
 
         {
 
-          status:200,
+          status: 200,
 
-          headers:{
-            "Content-Type":"application/json"
+          headers: {
+            "Content-Type": "application/json"
           }
 
         }
@@ -580,9 +650,9 @@ function getISTTimestamp() {
 
     const {
 
-      data:newRecord,
+      data: newRecord,
 
-      error:insertError
+      error: insertError
 
     } = await supabase
 
@@ -603,7 +673,7 @@ function getISTTimestamp() {
           integration.provider_id,
 
         brand_name:
-            brandName,
+          brandName,
 
 
 
@@ -705,9 +775,9 @@ function getISTTimestamp() {
 
         products:
           products,
-           
+
         discount_codes:
-            discountCodes,
+          discountCodes,
 
 
         attempts:
@@ -716,13 +786,13 @@ function getISTTimestamp() {
 
         follow_up:
           autoFollowUp,
-          
+
         current_status:
           autoCurrentStatus,
-          
+
         call_status:
           autoCallStatus,
-          
+
         notes:
           autoNotes,
 
@@ -749,7 +819,7 @@ function getISTTimestamp() {
 
 
 
-    if(insertError){
+    if (insertError) {
 
 
       console.log(
@@ -776,7 +846,7 @@ function getISTTimestamp() {
         p_cart_id: newRecord.id,
         p_provider_table: 'shopify_acc_table'
       });
-      
+
       if (assignError) {
         console.error("Round Robin Assignment Error:", assignError);
       } else if (agentId) {
@@ -797,13 +867,13 @@ function getISTTimestamp() {
 
       JSON.stringify({
 
-        success:true,
+        success: true,
 
 
-        action:"created",
+        action: "created",
 
 
-        id:newRecord.id,
+        id: newRecord.id,
 
 
         brand_id:
@@ -819,11 +889,11 @@ function getISTTimestamp() {
 
       {
 
-        status:200,
+        status: 200,
 
 
-        headers:{
-          "Content-Type":"application/json"
+        headers: {
+          "Content-Type": "application/json"
         }
 
 
@@ -837,7 +907,7 @@ function getISTTimestamp() {
 
   }
 
-  catch(error){
+  catch (error) {
 
 
     console.log(
@@ -851,7 +921,7 @@ function getISTTimestamp() {
 
       JSON.stringify({
 
-        success:false,
+        success: false,
 
 
         error:
@@ -864,11 +934,11 @@ function getISTTimestamp() {
 
       {
 
-        status:500,
+        status: 500,
 
 
-        headers:{
-          "Content-Type":"application/json"
+        headers: {
+          "Content-Type": "application/json"
         }
 
       }

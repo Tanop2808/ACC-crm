@@ -218,12 +218,8 @@ export default function AbandonedCartsPage() {
       finalNote = noteInput ? `[${noteCallStatus}] ${noteInput}` : `[${noteCallStatus}]`;
     }
     
-    // Also update call_status if it's set
-    if (noteCallStatus) {
-      await (supabase as any).from(selectedCustomer.source === 'shopify' ? 'shopify_acc_table' : 'shiprocket_acc_table')
-        .update({ call_status: noteCallStatus })
-        .eq('id', selectedCustomer.id);
-    }
+    // Intentionally not updating the overall call_status here to prevent the cart from jumping sections.
+    // The call status will just be recorded as text inside the note prefix.
 
     const { error } = await addNote(
       selectedCustomer.id, 
@@ -408,27 +404,17 @@ export default function AbandonedCartsPage() {
           <Button variant="outline" className="bg-white text-slate-700 border-slate-200 shadow-sm font-medium h-10 px-4" onClick={handleExport}>
             <Download className="w-4 h-4 mr-2 text-slate-500" /> Export
           </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger className="flex items-center gap-3 pl-4 border-l border-slate-200 cursor-pointer outline-none bg-transparent border-t-0 border-r-0 border-b-0 m-0 p-0 hover:bg-transparent">
-              <div className="flex items-center gap-3 pl-4">
-                <div className="w-10 h-10 rounded-full overflow-hidden border border-slate-200 bg-slate-100 flex items-center justify-center text-slate-500">
-                  <User className="w-5 h-5" />
-                </div>
-                <div className="text-left hidden sm:block">
-                  <p className="text-sm font-bold text-slate-900 leading-tight">{userName}</p>
-                  <p className="text-xs font-medium text-slate-500 leading-tight">{userRole}</p>
-                </div>
+          <div className="flex items-center gap-3 pl-4 border-l border-slate-200 bg-transparent m-0 p-0">
+            <div className="flex items-center gap-3 pl-4">
+              <div className="w-10 h-10 rounded-full overflow-hidden border border-slate-200 bg-slate-100 flex items-center justify-center text-slate-500">
+                <User className="w-5 h-5" />
               </div>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel>My Account</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem className="cursor-pointer">Profile</DropdownMenuItem>
-              <DropdownMenuItem className="cursor-pointer">Settings</DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem className="cursor-pointer text-red-600 focus:text-red-600">Log out</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+              <div className="text-left hidden sm:block">
+                <p className="text-sm font-bold text-slate-900 leading-tight">{userName}</p>
+                <p className="text-xs font-medium text-slate-500 leading-tight">{userRole}</p>
+              </div>
+            </div>
+          </div>
         </div>
       </header>
 

@@ -22,7 +22,7 @@ import {
 } from "@/services/adminService";
 import { 
   ArrowLeft, Cable, Server, Key, UserCheck, Plus, Trash2, 
-  Mail, Loader2, Copy, CheckCircle2, ShieldCheck 
+  Mail, Loader2, Copy, CheckCircle2, ShieldCheck, Phone
 } from "lucide-react";
 import Link from "next/link";
 
@@ -41,6 +41,7 @@ export default function BrandDetailsPage({ params }: PageProps) {
   const [selectedProviderId, setSelectedProviderId] = useState<string>("");
   const [agentName, setAgentName] = useState("");
   const [agentEmail, setAgentEmail] = useState("");
+  const [agentExtension, setAgentExtension] = useState("");
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingIntegration, setIsSavingIntegration] = useState(false);
@@ -99,7 +100,7 @@ export default function BrandDetailsPage({ params }: PageProps) {
 
     setIsSavingAssignment(true);
     try {
-      const { data, error } = await assignAgentToBrand(brandId, agentName.trim(), cleanEmail);
+      const { data, error } = await assignAgentToBrand(brandId, agentName.trim(), cleanEmail, agentExtension.trim());
       if (error) {
         setAssignmentError(error.message || "Failed to assign agent.");
       } else {
@@ -108,6 +109,7 @@ export default function BrandDetailsPage({ params }: PageProps) {
         if (updatedAssignments) setAssignments(updatedAssignments);
         setAgentName("");
         setAgentEmail("");
+        setAgentExtension("");
       }
     } catch (err: any) {
       setAssignmentError(err.message || "An unexpected error occurred.");
@@ -302,6 +304,20 @@ export default function BrandDetailsPage({ params }: PageProps) {
                     <Mail className="w-4 h-4 text-muted-foreground absolute right-3 top-2.5" />
                   </div>
                 </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="agentExtension" className="text-[12px] font-bold">SparkTG Extension (Optional)</Label>
+                  <div className="relative">
+                    <Input 
+                      id="agentExtension"
+                      type="text"
+                      placeholder="e.g. 10224000"
+                      value={agentExtension}
+                      onChange={(e) => setAgentExtension(e.target.value)}
+                      className="font-medium h-9 pr-9"
+                    />
+                    <Phone className="w-4 h-4 text-muted-foreground absolute right-3 top-2.5" />
+                  </div>
+                </div>
                 <Button 
                   type="submit" 
                   disabled={isSavingAssignment}
@@ -328,6 +344,11 @@ export default function BrandDetailsPage({ params }: PageProps) {
                         <div className="space-y-0.5 truncate">
                           <p className="text-[13px] font-bold text-foreground truncate">{assignment.agent_name}</p>
                           <p className="text-[11px] text-muted-foreground truncate">{assignment.agent_email}</p>
+                          {assignment.extension && (
+                            <p className="text-[11px] text-primary/80 font-mono truncate flex items-center gap-1 mt-0.5">
+                              <Phone className="w-3 h-3" /> {assignment.extension}
+                            </p>
+                          )}
                         </div>
                         <Button 
                           variant="ghost" 

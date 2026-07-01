@@ -240,6 +240,32 @@ export default function AbandonedCartsPage() {
     setIsSubmittingNote(false);
   };
 
+  const [isCalling, setIsCalling] = useState(false);
+  const handleStartCall = async (cartId: string, brandId: string) => {
+    const activeAgentId = currentAgentId || TEMP_LOGGED_IN_AGENT_ID;
+    if (!activeAgentId) {
+      alert("Error: You must be logged in as an Agent to make calls. No Agent ID found in session.");
+      return;
+    }
+    
+    setIsCalling(true);
+    try {
+      // dynamic import so we don't break SSR
+      const { initiateCall } = await import('@/services/telephonyService');
+      const res = await initiateCall(cartId, activeAgentId, brandId);
+      if (res.success) {
+        // We could show a toast here
+        console.log("Call initiated successfully", res.data);
+      } else {
+        alert(res.error || "Failed to initiate call");
+      }
+    } catch (err: any) {
+      alert("Error initiating call: " + err.message);
+    } finally {
+      setIsCalling(false);
+    }
+  };
+
   const handleUpdateStatus = async (newStatus: string) => {
     if (!selectedCustomer) return;
     
@@ -547,8 +573,16 @@ export default function AbandonedCartsPage() {
                           <p className="text-[12px] font-medium text-slate-500 truncate">{c.assignment_status || 'Pending'}</p>
                         </div>
                         <div className="col-span-1 flex items-center justify-center gap-2">
-                          <button className="w-8 h-8 rounded-full bg-[#F4F1FD] text-[#7B5EE4] flex items-center justify-center hover:bg-[#EAE4FC] transition-colors">
-                            <PhoneCall className="w-3 h-3" />
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation(); // prevent row selection if just clicking call
+                              if (c.id && c.brand_id) handleStartCall(c.id, c.brand_id);
+                            }}
+                            disabled={isCalling || !c.customer_phone}
+                            className="w-8 h-8 rounded-full bg-[#F4F1FD] text-[#7B5EE4] flex items-center justify-center hover:bg-[#EAE4FC] transition-colors disabled:opacity-50"
+                            title={!c.customer_phone ? "No phone number available" : "Call Customer"}
+                          >
+                            {isCalling && selectedCartId === c.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <PhoneCall className="w-3 h-3" />}
                           </button>
                         </div>
                       </>
@@ -705,8 +739,13 @@ export default function AbandonedCartsPage() {
                       </p>
                       <p className="text-[13px] font-medium text-[#15803D]">Customer is available. You can start the call.</p>
                     </div>
-                    <Button className="w-full bg-[#7B5EE4] hover:bg-[#684bd3] text-white shadow-md rounded-xl font-bold h-11 flex items-center justify-center gap-2 transition-colors text-[14px]">
-                      <PhoneCall className="w-4 h-4 fill-white" /> Start Call
+                    <Button 
+                      onClick={() => selectedCustomer?.id && selectedCustomer?.brand_id && handleStartCall(selectedCustomer.id, selectedCustomer.brand_id)}
+                      disabled={isCalling || !selectedCustomer?.customer_phone}
+                      className="w-full bg-[#7B5EE4] hover:bg-[#684bd3] text-white shadow-md rounded-xl font-bold h-11 flex items-center justify-center gap-2 transition-colors text-[14px]"
+                    >
+                      {isCalling ? <Loader2 className="w-4 h-4 animate-spin" /> : <PhoneCall className="w-4 h-4 fill-white" />} 
+                      {isCalling ? 'Starting Call...' : 'Start Call'}
                     </Button>
                   </div>
 

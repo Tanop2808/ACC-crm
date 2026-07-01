@@ -34,6 +34,7 @@ export interface AgentAssignment {
   brand_name: string;
   created_at: string;
   agent_name?: string;
+  extension?: string;
 }
 
 // Fetch all brands
@@ -174,7 +175,7 @@ export async function getAgentBrandAssignments(brandId: string) {
 }
 
 // Assign agent to brand
-export async function assignAgentToBrand(brandId: string, name: string, email: string) {
+export async function assignAgentToBrand(brandId: string, name: string, email: string, extension: string = '') {
   // Clean email
   const cleanEmail = email.trim().toLowerCase();
   if (!cleanEmail.endsWith('@datastraw.in')) {
@@ -217,7 +218,8 @@ export async function assignAgentToBrand(brandId: string, name: string, email: s
       agent_id: agentId,
       agent_email: cleanEmail,
       brand_id: brandId,
-      brand_name: brand.name
+      brand_name: brand.name,
+      extension: extension || null
     })
     .select()
     .single();

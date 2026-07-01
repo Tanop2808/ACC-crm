@@ -260,6 +260,25 @@ Deno.serve(async (req: Request) => {
         console.log("No matching abandoned carts found to recover.");
       }
 
+      // ==========================================
+      // 5.1 LOG ORDER CREATION PAYLOAD
+      // ==========================================
+      const { error: logError } = await supabase
+        .from("shopify_order_creation_table")
+        .insert({
+          integration_id: integration?.id || null,
+          brand_id: integration?.brand_id || null,
+          cart_token: orderCheckoutToken,
+          customer_email: orderEmail,
+          customer_phone: orderPhone,
+          event_type: "order_created",
+          raw_payload: body
+        });
+      
+      if (logError) {
+        console.log("Failed to log order creation payload:", logError);
+      }
+
       return new Response(JSON.stringify({ success: true, action: "recovered" }), { status: 200, headers: { "Content-Type": "application/json" } });
     }
 

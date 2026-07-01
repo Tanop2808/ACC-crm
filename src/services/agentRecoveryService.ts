@@ -174,12 +174,12 @@ export async function getAssignedCarts(
   }
 
   if (filters.abandonedFrom) {
-    query = query.gte('abandoned_at', filters.abandonedFrom);
+    query = query.gte('updated_at', filters.abandonedFrom);
   }
 
   if (filters.abandonedTo) {
     // Append time to include the entire day for the 'To' date
-    query = query.lte('abandoned_at', `${filters.abandonedTo}T23:59:59.999Z`);
+    query = query.lte('updated_at', `${filters.abandonedTo}T23:59:59.999Z`);
   }
 
   if (filters.selectedPriorities && filters.selectedPriorities.length > 0) {

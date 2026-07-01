@@ -267,9 +267,10 @@ export default function AbandonedCartsPage() {
     
     let callStatusUpdate: string | undefined = undefined;
     if (newStatus === 'interested') callStatusUpdate = 'Interested';
-    else if (newStatus === 'completed') callStatusUpdate = 'Completed';
+    else if (newStatus === 'completed') callStatusUpdate = 'Converted';
     else if (newStatus === 'not_interested') callStatusUpdate = 'Not Interested';
-    else if (newStatus === 'attempted') callStatusUpdate = 'Attempted';
+    else if (newStatus === 'attempted') callStatusUpdate = 'Attempted (No Answer)';
+    else if (newStatus === 'calls') callStatusUpdate = 'Addressable';
 
     const { error } = await updateStatusAndNote(
       selectedCustomer.id,
@@ -440,12 +441,12 @@ export default function AbandonedCartsPage() {
               <div className="flex flex-1 overflow-x-auto custom-scrollbar pt-2 min-w-0">
               {[
                 { id: 'all', label: 'All Carts' },
-                { id: 'calls', label: 'Calls to Make' },
-                { id: 'interested', label: 'Interested' },
-                { id: 'attempted', label: 'Attempted' },
-                { id: 'completed', label: 'Completed' },
+                { id: 'calls', label: 'Addressable' },
+                { id: 'attempted', label: 'Attempted (No Answer)' },
                 { id: 'recovered', label: 'Recovered' },
-                { id: 'not_interested', label: 'Not Interested' }
+                { id: 'interested', label: 'Interested' },
+                { id: 'not_interested', label: 'Not Interested' },
+                { id: 'completed', label: 'Converted' }
               ].map(tab => {
                 const isActive = activeListTab === tab.id;
                 return (
@@ -480,8 +481,7 @@ export default function AbandonedCartsPage() {
                 <div className="col-span-3 text-[12px] font-bold text-slate-500">Customer</div>
                 <div className="col-span-2 text-[12px] font-bold text-slate-500">Cart Value</div>
                 <div className="col-span-2 text-[12px] font-bold text-slate-500">Abandoned</div>
-                <div className="col-span-1 text-[12px] font-bold text-slate-500 text-center">Priority</div>
-                <div className="col-span-2 text-[12px] font-bold text-slate-500">Agent</div>
+                <div className="col-span-3 text-[12px] font-bold text-slate-500">Agent</div>
                 <div className="col-span-1 text-[12px] font-bold text-slate-500 text-center">Action</div>
               </div>
             )}
@@ -549,14 +549,17 @@ export default function AbandonedCartsPage() {
                           <p className="text-[13px] font-bold text-slate-900">{getDaysAgo(c.abandoned_at)}</p>
                           <p className="text-[12px] font-medium text-slate-500">{formatDateTime(c.abandoned_at).split(', ')[1] || ''}</p>
                         </div>
-                        <div className="col-span-1 flex items-center justify-center">
-                          <Badge variant="outline" className={`text-[11px] font-bold border px-2 py-0.5 rounded-full ${prio.color}`}>
-                            {prio.label}
-                          </Badge>
-                        </div>
-                        <div className="col-span-2">
+                        <div className="col-span-3">
                           <p className="text-[13px] font-bold text-slate-900 truncate">{c.agent_name || 'Unassigned'}</p>
                           <p className="text-[12px] font-medium text-slate-500 truncate">{c.assignment_status || 'Pending'}</p>
+                          {c.current_status && c.current_status !== 'calls' && (
+                            <Badge className="mt-1 shrink-0 border-none text-[10px] font-bold px-2 py-0.5 rounded-sm bg-[#F4F1FD] text-[#7B5EE4]">
+                              {c.current_status === 'attempted' ? 'Attempted (No Answer)' :
+                               c.current_status === 'not_interested' ? 'Not Interested' :
+                               c.current_status === 'completed' ? 'Converted' :
+                               c.current_status.charAt(0).toUpperCase() + c.current_status.slice(1)}
+                            </Badge>
+                          )}
                         </div>
                         <div className="col-span-1 flex items-center justify-center gap-2">
                           <button 
@@ -619,9 +622,7 @@ export default function AbandonedCartsPage() {
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2 mb-2">
                         <h2 className="text-[17px] font-bold text-slate-900 leading-tight break-words">{selectedCustomer.customer_name || 'Unknown'}</h2>
-                        <Badge className={`shrink-0 border-none text-[11px] font-bold px-2.5 py-0.5 rounded-full ${getPriority(selectedCustomer.cart_value || 0).color}`}>
-                          {getPriority(selectedCustomer.cart_value || 0).label} Priority
-                        </Badge>
+                        {/* Priority removed */}
                       </div>
                       <div className="space-y-1.5">
                         <p className="text-[13px] font-medium text-slate-500 flex items-start gap-2">
@@ -667,18 +668,19 @@ export default function AbandonedCartsPage() {
 
                   <div className="flex items-center gap-3 mb-5 px-1">
                     <Select 
-                      value={pendingRecoveryStatus || (['interested', 'attempted', 'completed', 'not_interested'].includes(selectedCustomer.current_status || '') ? selectedCustomer.current_status : '') || ''} 
+                      value={pendingRecoveryStatus || (['calls', 'interested', 'attempted', 'completed', 'not_interested', 'recovered'].includes(selectedCustomer.current_status || '') ? selectedCustomer.current_status : '') || ''} 
                       onValueChange={(val) => setPendingRecoveryStatus(val || "")}
                     >
                       <SelectTrigger className="w-[180px] bg-white border-slate-200 text-slate-700 text-[13px] font-bold">
                         <SelectValue placeholder="Select Status" />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="calls">Addressable</SelectItem>
+                        <SelectItem value="attempted">Attempted (No Answer)</SelectItem>
+                        <SelectItem value="recovered">Recovered</SelectItem>
                         <SelectItem value="interested">Interested</SelectItem>
                         <SelectItem value="not_interested">Not Interested</SelectItem>
-                        <SelectItem value="completed">Completed</SelectItem>
-                        <SelectItem value="recovered">Recovered</SelectItem>
-                        <SelectItem value="attempted">Attempted</SelectItem>
+                        <SelectItem value="completed">Converted</SelectItem>
                       </SelectContent>
                     </Select>
                     <Button 
@@ -1176,33 +1178,7 @@ export default function AbandonedCartsPage() {
                 </div>
               </div>
 
-              <div className="h-px bg-slate-100" />
-
-              {/* Priority — toggle chips */}
-              <div className="space-y-4">
-                <label className="text-[13px] font-bold text-slate-600">Priority</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {([
-                    { label: 'Low',    selectedCls: 'bg-green-50 border-green-300 text-green-700',   dot: 'bg-green-500'  },
-                    { label: 'Medium', selectedCls: 'bg-orange-50 border-orange-300 text-orange-700', dot: 'bg-orange-500' },
-                    { label: 'High',   selectedCls: 'bg-red-50 border-red-300 text-red-700',         dot: 'bg-red-500'   },
-                  ] as const).map(({ label, selectedCls, dot }) => {
-                    const isOn = selectedPriorities.includes(label);
-                    return (
-                      <button
-                        key={label}
-                        onClick={() => togglePriority(label)}
-                        className={`h-11 rounded-xl text-[13px] font-bold border-2 transition-all flex items-center justify-center gap-1.5 ${
-                          isOn ? selectedCls : 'bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-100'
-                        }`}
-                      >
-                        <span className={`w-2 h-2 rounded-full shrink-0 ${isOn ? dot : 'bg-slate-300'}`} />
-                        {label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+              {/* Priority filters removed */}
 
             </div>
             <SheetFooter className="px-6 pb-6 pt-0 border-t border-slate-100">

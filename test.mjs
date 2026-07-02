@@ -5,7 +5,7 @@ const supabase = createClient(
 );
 
 async function check() {
-  const { data, error } = await supabase.from('shopify_acc_table').select('id, agent_id, agent_name, created_at, customer_name').order('created_at', { ascending: false }).limit(3);
-  console.log('Latest Carts:', data, error);
+  const { data, error } = await supabase.from('brands').select('id, name');
+  console.log('Brands:', data, error);
 }
 check();

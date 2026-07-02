@@ -4,9 +4,9 @@
 UPDATE public.shopify_acc_table
 SET current_status = 'non_addressable'
 WHERE (current_status = 'calls' OR current_status IS NULL)
-  AND (customer_phone IS NULL OR TRIM(customer_phone) = '');
+  AND (customer_phone IS NULL OR TRIM(customer_phone) = '' OR TRIM(customer_phone) = 'N/A');
 
 UPDATE public.shiprocket_acc_table
 SET current_status = 'non_addressable'
 WHERE (current_status = 'calls' OR current_status IS NULL)
-  AND (customer_phone IS NULL OR TRIM(customer_phone) = '');
+  AND (customer_phone IS NULL OR TRIM(customer_phone) = '' OR TRIM(customer_phone) = 'N/A');

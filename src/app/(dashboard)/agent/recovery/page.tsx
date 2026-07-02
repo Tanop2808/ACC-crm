@@ -500,7 +500,7 @@ export default function AbandonedCartsPage() {
               })}
               </div>
               <div className="flex items-center pl-4 border-l border-slate-100 my-2 ml-2 mr-2">
-                <Select value={sortOrder} onValueChange={setSortOrder}>
+                <Select value={sortOrder} onValueChange={(val) => setSortOrder(val || "desc")}>
                   <SelectTrigger className="w-[160px] h-9 text-[13px] bg-slate-50 border-slate-200 font-medium text-slate-700 shadow-sm rounded-md">
                     <SelectValue placeholder="Sort by" />
                   </SelectTrigger>

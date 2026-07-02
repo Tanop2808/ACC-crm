@@ -92,7 +92,10 @@ Deno.serve(async (req: Request) => {
     const customerName = [firstName, lastName].filter(Boolean).join(" ") || null;
     const email = body.email ?? null;
     const address = body.shipping_address ?? body.billing_address ?? {};
-    const phone = body.phone_number ?? body.phone ?? address.phone ?? address.phone_number ?? null;
+    let phone = body.phone_number ?? body.phone ?? address.phone ?? address.phone_number ?? null;
+    if (phone === "N/A" || phone?.trim() === "") {
+      phone = null;
+    }
     const cartId = body.cart_id ?? null;
     const cartToken = body.cart_token ?? null;
     const checkoutUrl = body.checkout_url ?? null;

@@ -175,7 +175,7 @@ export async function getAgentBrandAssignments(brandId: string) {
 }
 
 // Assign agent to brand
-export async function assignAgentToBrand(brandId: string, name: string, email: string, extension: string = '') {
+export async function assignAgentToBrand(brandId: string, name: string, email: string, extension: string = '', telephonyPassword: string = '', telephonyServiceId: string = '') {
   // Clean email
   const cleanEmail = email.trim().toLowerCase();
   if (!cleanEmail.endsWith('@datastraw.in')) {
@@ -219,7 +219,9 @@ export async function assignAgentToBrand(brandId: string, name: string, email: s
       agent_email: cleanEmail,
       brand_id: brandId,
       brand_name: brand.name,
-      extension: extension || null
+      extension: extension || null,
+      telephony_password: telephonyPassword || null,
+      telephony_service_id: telephonyServiceId || null
     })
     .select()
     .single();

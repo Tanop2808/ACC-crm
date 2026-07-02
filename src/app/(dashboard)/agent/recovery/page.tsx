@@ -880,13 +880,13 @@ export default function AbandonedCartsPage() {
                         <div className="bg-emerald-50 rounded-xl p-5 border border-emerald-100 flex flex-col gap-3 mb-2">
                           <h4 className="text-[12px] font-black text-emerald-800 uppercase tracking-wider">Converted Order</h4>
                           <div className="grid grid-cols-2 gap-4">
-                            <div>
+                            <div className="min-w-0">
                               <p className="text-[11px] font-bold text-emerald-600 uppercase mb-0.5">Order ID</p>
-                              <p className="text-[13px] font-bold text-emerald-900">{selectedCustomer.recovered_order_id || 'N/A'}</p>
+                              <p className="text-[13px] font-bold text-emerald-900 truncate" title={selectedCustomer.recovered_order_id || 'N/A'}>{selectedCustomer.recovered_order_id || 'N/A'}</p>
                             </div>
-                            <div>
+                            <div className="min-w-0">
                               <p className="text-[11px] font-bold text-emerald-600 uppercase mb-0.5">Amount</p>
-                              <p className="text-[13px] font-bold text-emerald-900">{selectedCustomer.recovered_amount != null ? formatCurrency(selectedCustomer.recovered_amount) : 'N/A'}</p>
+                              <p className="text-[13px] font-bold text-emerald-900 truncate">{selectedCustomer.recovered_amount != null ? formatCurrency(selectedCustomer.recovered_amount) : 'N/A'}</p>
                             </div>
                             {selectedCustomer.recovered_payment_type && (
                               <div className="col-span-2">

@@ -1039,7 +1039,7 @@ export default function AbandonedCartsPage() {
                           <Button 
                             className="bg-[#7B5EE4] hover:bg-[#684bd3] text-white text-[12px] h-9 px-4 rounded-lg font-bold"
                             onClick={handleAddNote}
-                            disabled={isSubmittingNote || !noteInput.trim()}
+                            disabled={isSubmittingNote || (!noteInput.trim() && !noteCallStatus)}
                           >
                             {isSubmittingNote ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                             Save Note

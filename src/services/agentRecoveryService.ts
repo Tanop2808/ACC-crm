@@ -40,6 +40,9 @@ export interface AssignedCart {
   activity_logs: any;
   created_at: string;
   updated_at: string;
+  recovered_order_id?: string | null;
+  recovered_amount?: number | null;
+  recovered_payment_type?: string | null;
 }
 
 export async function getAgents() {
@@ -396,14 +399,20 @@ export async function addNote(cartId: string, assignmentId: string, agentId: str
   }
 }
 
-export async function updateStatusAndNote(cartId: string, assignmentId: string, agentId: string, newStatus: string, oldStatus: string | null, noteText: string, callStatus?: string) {
+export async function updateStatusAndNote(cartId: string, assignmentId: string, agentId: string, newStatus: string, oldStatus: string | null, noteText: string, callStatus?: string | null, conversionData?: { orderId: string, amount: string, paymentType: string }) {
   let updates: Record<string, any> = { current_status: newStatus, notes: noteText };
-  if (callStatus) updates.call_status = callStatus;
+  if (callStatus !== undefined) updates.call_status = callStatus;
 
   if (newStatus === 'interested' || newStatus === 'attempted') {
     updates.follow_up = true;
   } else if (newStatus === 'completed' || newStatus === 'not_interested') {
     updates.follow_up = false;
+  }
+
+  if (conversionData && newStatus === 'completed') {
+    updates.recovered_order_id = conversionData.orderId;
+    updates.recovered_amount = conversionData.amount ? parseFloat(conversionData.amount) : null;
+    updates.recovered_payment_type = conversionData.paymentType;
   }
 
   try {

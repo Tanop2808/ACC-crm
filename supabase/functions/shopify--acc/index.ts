@@ -666,6 +666,11 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    if (!customerPhone) {
+      autoCallStatus = "No Number";
+      autoNotes = "[System] Customer did not provide a phone number.";
+    }
+
 
     const {
 

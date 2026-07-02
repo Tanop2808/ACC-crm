@@ -339,6 +339,11 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    if (!phone) {
+      autoCallStatus = "No Number";
+      autoNotes = "[System] Customer did not provide a phone number.";
+    }
+
     if (isRecovered) {
       autoCurrentStatus = "recovered";
       autoCallStatus = null;

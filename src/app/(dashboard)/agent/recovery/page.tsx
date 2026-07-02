@@ -47,6 +47,9 @@ export default function AbandonedCartsPage() {
   const [noteCallStatus, setNoteCallStatus] = useState("");
   const [pendingRecoveryStatus, setPendingRecoveryStatus] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [conversionOrderId, setConversionOrderId] = useState("");
+  const [conversionAmount, setConversionAmount] = useState("");
+  const [conversionPaymentType, setConversionPaymentType] = useState("Prepaid");
   const [activityInput, setActivityInput] = useState("");
   const [isSubmittingNote, setIsSubmittingNote] = useState(false);
   const [isSubmittingActivity, setIsSubmittingActivity] = useState(false);
@@ -286,12 +289,12 @@ export default function AbandonedCartsPage() {
   const handleUpdateStatus = async (newStatus: string) => {
     if (!selectedCustomer) return;
     
-    let callStatusUpdate: string | undefined = undefined;
+    let callStatusUpdate: string | null | undefined = undefined;
     if (newStatus === 'interested') callStatusUpdate = 'Interested';
     else if (newStatus === 'completed') callStatusUpdate = 'Converted';
     else if (newStatus === 'not_interested') callStatusUpdate = 'Not Interested';
     else if (newStatus === 'attempted') callStatusUpdate = 'Attempted (No Answer)';
-    else if (newStatus === 'calls') callStatusUpdate = 'Addressable';
+    else if (newStatus === 'calls') callStatusUpdate = null;
 
     const { error } = await updateStatusAndNote(
       selectedCustomer.id,
@@ -300,7 +303,8 @@ export default function AbandonedCartsPage() {
       newStatus,
       selectedCustomer.current_status,
       selectedCustomer.notes || "",
-      callStatusUpdate
+      callStatusUpdate,
+      newStatus === 'completed' ? { orderId: conversionOrderId, amount: conversionAmount, paymentType: conversionPaymentType } : undefined
     );
 
     if (!error) {
@@ -401,9 +405,9 @@ export default function AbandonedCartsPage() {
                 <SelectValue placeholder="Select timeframe" />
               </div>
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent position="popper" sideOffset={4}>
               <SelectItem value="all_time">All Time</SelectItem>
-              <SelectItem value="yesterday">Yesterday</SelectItem>
+              <SelectItem value="yesterday" spellCheck={false}>Yesterday</SelectItem>
               <SelectItem value="last_week">Last 7 Days</SelectItem>
               <SelectItem value="last_month">Last 30 Days</SelectItem>
             </SelectContent>
@@ -464,7 +468,6 @@ export default function AbandonedCartsPage() {
                 { id: 'all', label: 'All Carts' },
                 { id: 'calls', label: 'Addressable' },
                 { id: 'attempted', label: 'Attempted (No Answer)' },
-                { id: 'recovered', label: 'Recovered' },
                 { id: 'interested', label: 'Interested' },
                 { id: 'not_interested', label: 'Not Interested' },
                 { id: 'completed', label: 'Converted' }
@@ -488,15 +491,6 @@ export default function AbandonedCartsPage() {
             {/* List Header + Rows */}
             <div className="flex-1 overflow-auto custom-scrollbar min-h-0">
               <div className="min-w-[720px]">
-            {activeListTab === 'recovered' ? (
-              <div className="grid grid-cols-12 gap-4 px-6 py-4 border-b border-slate-100 bg-white">
-                <div className="col-span-1 flex items-center justify-center"><Checkbox checked={selectedForExport.size === customers.length && customers.length > 0} onCheckedChange={(c) => handleSelectAll(c as boolean)} className="w-4 h-4 rounded" /></div>
-                <div className="col-span-3 text-[12px] font-bold text-slate-500">Customer</div>
-                <div className="col-span-3 text-[12px] font-bold text-slate-500">Order ID</div>
-                <div className="col-span-2 text-[12px] font-bold text-slate-500">Amount</div>
-                <div className="col-span-3 text-[12px] font-bold text-slate-500">Order Details</div>
-              </div>
-            ) : (
               <div className="grid grid-cols-12 gap-4 px-6 py-4 border-b border-slate-100 bg-white">
                 <div className="col-span-1 flex items-center justify-center"><Checkbox checked={selectedForExport.size === customers.length && customers.length > 0} onCheckedChange={(c) => handleSelectAll(c as boolean)} className="w-4 h-4 rounded" /></div>
                 <div className="col-span-3 text-[12px] font-bold text-slate-500">Customer</div>
@@ -505,7 +499,6 @@ export default function AbandonedCartsPage() {
                 <div className="col-span-3 text-[12px] font-bold text-slate-500">Agent</div>
                 <div className="col-span-1 text-[12px] font-bold text-slate-500 text-center">Action</div>
               </div>
-            )}
 
             {/* List Content */}
             <div>
@@ -529,87 +522,64 @@ export default function AbandonedCartsPage() {
                         className={selectedForExport.has(c.id) ? "data-[state=checked]:bg-[#7B5EE4] data-[state=checked]:border-[#7B5EE4]" : ""} 
                       />
                     </div>
-                    
-                    {activeListTab === 'recovered' ? (
-                      <>
-                        <div className="col-span-3 flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 font-bold text-[12px] shrink-0">
-                            {getInitials(c.customer_name)}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-[13px] font-bold text-slate-900 truncate">{c.customer_name || 'Unknown'}</p>
-                            <p className="text-[12px] font-medium text-slate-500 truncate">{c.customer_phone || c.customer_email}</p>
-                          </div>
-                        </div>
-                        <div className="col-span-3">
-                           <p className="text-[13px] font-medium text-slate-900 truncate font-mono">
-                             {c.source === 'shiprocket' ? (c.cart_id || 'N/A') : (c.checkout_name || c.cart_id || 'N/A')}
-                           </p>
-                           <p className="text-[11px] font-medium text-slate-500 mb-1">{c.source === 'shiprocket' ? 'Shiprocket' : 'Shopify'}</p>
-                           {c.current_status && c.current_status !== 'calls' && (
-                             <Badge className="shrink-0 border-none text-[10px] font-bold px-2 py-0.5 rounded-sm bg-[#F4F1FD] text-[#7B5EE4]">
-                               {c.current_status === 'attempted' ? 'Attempted (No Answer)' :
-                                c.current_status === 'not_interested' ? 'Not Interested' :
-                                c.current_status === 'completed' ? 'Converted' :
-                                c.current_status.charAt(0).toUpperCase() + c.current_status.slice(1)}
-                             </Badge>
-                           )}
-                        </div>
-                        <div className="col-span-2">
-                          <p className="text-[14px] font-bold text-slate-900">{formatCurrency(c.cart_value)}</p>
-                        </div>
-                        <div className="col-span-3">
-                          <p className="text-[12px] font-medium text-slate-600 line-clamp-2">
-                             {Array.isArray(c.products) ? c.products.map((p: any) => p.name || p.product).join(', ') : 'No product details'}
-                          </p>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div className="col-span-3 flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 font-bold text-[12px] shrink-0">
-                            {getInitials(c.customer_name)}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-[13px] font-bold text-slate-900 truncate">{c.customer_name || 'Unknown'}</p>
-                            <p className="text-[12px] font-medium text-slate-500 truncate">{c.customer_phone || c.customer_email}</p>
-                            <p className="text-[11px] font-medium text-slate-400 truncate font-mono mb-1">ID: {c.checkout_name || c.cart_id}</p>
-                            {c.current_status && c.current_status !== 'calls' && (
-                              <Badge className="shrink-0 border-none text-[10px] font-bold px-2 py-0.5 rounded-sm bg-[#F4F1FD] text-[#7B5EE4]">
-                                {c.current_status === 'attempted' ? 'Attempted (No Answer)' :
-                                 c.current_status === 'not_interested' ? 'Not Interested' :
-                                 c.current_status === 'completed' ? 'Converted' :
-                                 c.current_status.charAt(0).toUpperCase() + c.current_status.slice(1)}
-                              </Badge>
+                    <div className="col-span-3 flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 font-bold text-[12px] shrink-0">
+                        {getInitials(c.customer_name)}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[13px] font-bold text-slate-900 truncate">{c.customer_name || 'Unknown'}</p>
+                        <p className="text-[12px] font-medium text-slate-500 truncate">{c.customer_phone || c.customer_email}</p>
+                        <p className="text-[11px] font-medium text-slate-400 truncate font-mono mb-1">ID: {c.checkout_name || c.cart_id}</p>
+                        {c.current_status && (
+                          <div className="flex flex-col items-start gap-1 mt-0.5">
+                            <Badge className="shrink-0 border-none text-[10px] font-bold px-2 py-0.5 rounded-sm bg-[#F4F1FD] text-[#7B5EE4]">
+                              {c.current_status === 'attempted' ? 'Attempted (No Answer)' :
+                               c.current_status === 'not_interested' ? 'Not Interested' :
+                               c.current_status === 'completed' ? 'Converted' :
+                               c.current_status === 'calls' ? 'Addressable' :
+                               c.current_status.charAt(0).toUpperCase() + c.current_status.slice(1)}
+                            </Badge>
+                            {(c.recovered_order_id || c.recovered_amount != null) && (
+                              <div className="text-[10px] font-medium text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded flex gap-1.5 mt-0.5 border border-emerald-100">
+                                {c.recovered_order_id && <span>#{c.recovered_order_id}</span>}
+                                {c.recovered_order_id && c.recovered_amount != null && <span>•</span>}
+                                {c.recovered_amount != null && <span>{formatCurrency(c.recovered_amount)}</span>}
+                                {c.recovered_payment_type && (
+                                  <>
+                                    <span>•</span>
+                                    <span className="uppercase">{c.recovered_payment_type}</span>
+                                  </>
+                                )}
+                              </div>
                             )}
                           </div>
-                        </div>
-                        <div className="col-span-2">
-                          <p className="text-[14px] font-bold text-slate-900">{formatCurrency(c.cart_value)}</p>
-                        </div>
-                        <div className="col-span-2">
-                          <p className="text-[13px] font-bold text-slate-900">{getDaysAgo(c.abandoned_at)}</p>
-                          <p className="text-[12px] font-medium text-slate-500">{formatDateTime(c.abandoned_at).split(', ')[1] || ''}</p>
-                        </div>
-                        <div className="col-span-3">
-                          <p className="text-[13px] font-bold text-slate-900 truncate">{c.agent_name || 'Unassigned'}</p>
-                          <p className="text-[12px] font-medium text-slate-500 truncate">{c.assignment_status || 'Pending'}</p>
-                        </div>
-                        <div className="col-span-1 flex items-center justify-center gap-2">
-                          <button 
-                            onClick={(e) => {
-                              e.stopPropagation(); // prevent row selection if just clicking call
-                              if (c.id && c.brand_id) handleStartCall(c.id, c.brand_id);
-                            }}
-                            disabled={isCalling || !c.customer_phone}
-                            className="w-8 h-8 rounded-full bg-[#F4F1FD] text-[#7B5EE4] flex items-center justify-center hover:bg-[#EAE4FC] transition-colors disabled:opacity-50"
-                            title={!c.customer_phone ? "No phone number available" : "Call Customer"}
-                          >
-                            {isCalling && selectedCartId === c.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <PhoneCall className="w-3 h-3" />}
-                          </button>
-                        </div>
-                      </>
-                    )}
+                        )}
+                      </div>
+                    </div>
+                    <div className="col-span-2">
+                      <p className="text-[14px] font-bold text-slate-900">{formatCurrency(c.cart_value)}</p>
+                    </div>
+                    <div className="col-span-2">
+                      <p className="text-[13px] font-bold text-slate-900">{getDaysAgo(c.abandoned_at)}</p>
+                      <p className="text-[12px] font-medium text-slate-500">{formatDateTime(c.abandoned_at).split(', ')[1] || ''}</p>
+                    </div>
+                    <div className="col-span-3">
+                      <p className="text-[13px] font-bold text-slate-900 truncate">{c.agent_name || 'Unassigned'}</p>
+                      <p className="text-[12px] font-medium text-slate-500 truncate">{c.assignment_status || 'Pending'}</p>
+                    </div>
+                    <div className="col-span-1 flex items-center justify-center gap-2">
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation(); // prevent row selection if just clicking call
+                          if (c.id && c.brand_id) handleStartCall(c.id, c.brand_id);
+                        }}
+                        disabled={isCalling || !c.customer_phone}
+                        className="w-8 h-8 rounded-full bg-[#F4F1FD] text-[#7B5EE4] flex items-center justify-center hover:bg-[#EAE4FC] transition-colors disabled:opacity-50"
+                        title={!c.customer_phone ? "No phone number available" : "Call Customer"}
+                      >
+                        {isCalling && selectedCartId === c.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <PhoneCall className="w-3 h-3" />}
+                      </button>
+                    </div>
                   </div>
                 )
               })}
@@ -700,46 +670,81 @@ export default function AbandonedCartsPage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3 mb-5 px-1">
-                    <Select 
-                      value={pendingRecoveryStatus || (['calls', 'interested', 'attempted', 'completed', 'not_interested', 'recovered'].includes(selectedCustomer.current_status || '') ? selectedCustomer.current_status : '') || ''} 
-                      onValueChange={(val) => setPendingRecoveryStatus(val || "")}
-                    >
-                      <SelectTrigger className="w-[180px] bg-white border-slate-200 text-slate-700 text-[13px] font-bold">
-                        <SelectValue placeholder="Select Status">
-                          {(() => {
-                            const s = pendingRecoveryStatus || (['calls', 'interested', 'attempted', 'completed', 'not_interested', 'recovered'].includes(selectedCustomer.current_status || '') ? selectedCustomer.current_status : '');
-                            if (s === 'calls') return 'Addressable';
-                            if (s === 'attempted') return 'Attempted (No Answer)';
-                            if (s === 'recovered') return 'Recovered';
-                            if (s === 'interested') return 'Interested';
-                            if (s === 'not_interested') return 'Not Interested';
-                            if (s === 'completed') return 'Converted';
-                            return undefined;
-                          })()}
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="calls">Addressable</SelectItem>
-                        <SelectItem value="attempted">Attempted (No Answer)</SelectItem>
-                        <SelectItem value="recovered">Recovered</SelectItem>
-                        <SelectItem value="interested">Interested</SelectItem>
-                        <SelectItem value="not_interested">Not Interested</SelectItem>
-                        <SelectItem value="completed">Converted</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Button 
-                      className="bg-[#7B5EE4] hover:bg-[#684bd3] text-white text-[13px] h-9 px-6 rounded-md font-bold"
-                      onClick={() => {
-                        const statusToUpdate = pendingRecoveryStatus || selectedCustomer.current_status;
-                        if (statusToUpdate) {
-                          handleUpdateStatus(statusToUpdate);
-                        }
-                      }}
-                      disabled={!pendingRecoveryStatus || pendingRecoveryStatus === selectedCustomer.current_status}
-                    >
-                      Proceed
-                    </Button>
+                  <div className="flex flex-col gap-3 mb-5 px-1">
+                    <div className="flex items-center gap-3">
+                      <Select 
+                        value={pendingRecoveryStatus || (['calls', 'interested', 'attempted', 'completed', 'not_interested', 'recovered'].includes(selectedCustomer.current_status || '') ? selectedCustomer.current_status : '') || ''} 
+                        onValueChange={(val) => {
+                          setPendingRecoveryStatus(val || "");
+                          if (val === 'completed') {
+                            setConversionAmount(selectedCustomer.cart_value ? selectedCustomer.cart_value.toString() : "");
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="w-[180px] bg-white border-slate-200 text-slate-700 text-[13px] font-bold">
+                          <SelectValue placeholder="Select Status">
+                            {(() => {
+                              const s = pendingRecoveryStatus || (['calls', 'interested', 'attempted', 'completed', 'not_interested', 'recovered'].includes(selectedCustomer.current_status || '') ? selectedCustomer.current_status : '');
+                              if (s === 'calls') return 'Addressable';
+                              if (s === 'attempted') return 'Attempted (No Answer)';
+                              if (s === 'recovered') return 'Recovered';
+                              if (s === 'interested') return 'Interested';
+                              if (s === 'not_interested') return 'Not Interested';
+                              if (s === 'completed') return 'Converted';
+                              return undefined;
+                            })()}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="calls">Addressable</SelectItem>
+                          <SelectItem value="attempted">Attempted (No Answer)</SelectItem>
+                          <SelectItem value="recovered" className="hidden" disabled>Recovered</SelectItem>
+                          <SelectItem value="interested">Interested</SelectItem>
+                          <SelectItem value="not_interested">Not Interested</SelectItem>
+                          <SelectItem value="completed">Converted</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Button 
+                        className="bg-[#7B5EE4] hover:bg-[#684bd3] text-white text-[13px] h-9 px-6 rounded-md font-bold"
+                        onClick={() => {
+                          const statusToUpdate = pendingRecoveryStatus || selectedCustomer.current_status;
+                          if (statusToUpdate) {
+                            handleUpdateStatus(statusToUpdate);
+                          }
+                        }}
+                        disabled={!pendingRecoveryStatus || pendingRecoveryStatus === selectedCustomer.current_status || (pendingRecoveryStatus === 'completed' && (!conversionOrderId.trim() || !conversionAmount.trim()))}
+                      >
+                        Proceed
+                      </Button>
+                    </div>
+
+                    {pendingRecoveryStatus === 'completed' && (
+                      <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex flex-col gap-3 mt-1">
+                        <p className="text-[12px] font-bold text-slate-700 uppercase tracking-wider">Conversion Details</p>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1.5">
+                            <label className="text-[12px] font-medium text-slate-500">Order ID <span className="text-red-500">*</span></label>
+                            <Input placeholder="e.g. #10245" className="h-9 text-[13px] bg-white" value={conversionOrderId} onChange={e => setConversionOrderId(e.target.value)} />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-[12px] font-medium text-slate-500">Amount <span className="text-red-500">*</span></label>
+                            <Input placeholder="0.00" type="number" className="h-9 text-[13px] bg-white" value={conversionAmount} onChange={e => setConversionAmount(e.target.value)} />
+                          </div>
+                          <div className="col-span-2 space-y-1.5">
+                            <label className="text-[12px] font-medium text-slate-500">Payment Type <span className="text-red-500">*</span></label>
+                            <Select value={conversionPaymentType} onValueChange={setConversionPaymentType}>
+                              <SelectTrigger className="h-9 text-[13px] bg-white font-medium border-slate-200">
+                                <SelectValue placeholder="Select type" />
+                              </SelectTrigger>
+                              <SelectContent position="popper">
+                                <SelectItem value="Prepaid">Prepaid</SelectItem>
+                                <SelectItem value="COD">COD</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                   
                   {/* Detail Tabs */}
@@ -763,7 +768,7 @@ export default function AbandonedCartsPage() {
                 </div>
 
                 {/* Tab Content */}
-                <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+                <div className="flex-1 p-6">
                   {/* Ready to call banner */}
                   <div className="bg-[#F0FDF4] border border-[#DCFCE7] rounded-2xl p-4 flex flex-col gap-4 mb-6 shadow-sm">
                     <div>
@@ -870,6 +875,29 @@ export default function AbandonedCartsPage() {
                   {activeDetailTab === 'details' && (
                     <div className="space-y-4">
                       <h3 className="font-bold text-[16px] text-slate-900 mb-4">Cart Details</h3>
+                      
+                      {(selectedCustomer.recovered_order_id || selectedCustomer.recovered_amount != null) && (
+                        <div className="bg-emerald-50 rounded-xl p-5 border border-emerald-100 flex flex-col gap-3 mb-2">
+                          <h4 className="text-[12px] font-black text-emerald-800 uppercase tracking-wider">Converted Order</h4>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <p className="text-[11px] font-bold text-emerald-600 uppercase mb-0.5">Order ID</p>
+                              <p className="text-[13px] font-bold text-emerald-900">{selectedCustomer.recovered_order_id || 'N/A'}</p>
+                            </div>
+                            <div>
+                              <p className="text-[11px] font-bold text-emerald-600 uppercase mb-0.5">Amount</p>
+                              <p className="text-[13px] font-bold text-emerald-900">{selectedCustomer.recovered_amount != null ? formatCurrency(selectedCustomer.recovered_amount) : 'N/A'}</p>
+                            </div>
+                            {selectedCustomer.recovered_payment_type && (
+                              <div className="col-span-2">
+                                <p className="text-[11px] font-bold text-emerald-600 uppercase mb-0.5">Payment Mode</p>
+                                <p className="text-[13px] font-bold text-emerald-900 uppercase">{selectedCustomer.recovered_payment_type}</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
                       {selectedCustomer.checkout_url && (
                         <div className="mb-6">
                           <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Checkout URL</p>

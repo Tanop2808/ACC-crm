@@ -1,0 +1,98 @@
+ALTER TABLE shopify_acc_table 
+ADD COLUMN IF NOT EXISTS recovered_order_id TEXT,
+ADD COLUMN IF NOT EXISTS recovered_amount NUMERIC,
+ADD COLUMN IF NOT EXISTS recovered_payment_type TEXT;
+
+ALTER TABLE shiprocket_acc_table 
+ADD COLUMN IF NOT EXISTS recovered_order_id TEXT,
+ADD COLUMN IF NOT EXISTS recovered_amount NUMERIC,
+ADD COLUMN IF NOT EXISTS recovered_payment_type TEXT;
+
+DROP VIEW IF EXISTS "public"."abandon_cart_master";
+
+CREATE OR REPLACE VIEW "public"."abandon_cart_master" AS
+ SELECT "shopify_acc_table"."id",
+    "shopify_acc_table"."brand_id",
+    "shopify_acc_table"."brand_name",
+    "shopify_acc_table"."provider_id",
+    "shopify_acc_table"."integration_id",
+    "shopify_acc_table"."source",
+    "shopify_acc_table"."event_type",
+    "shopify_acc_table"."customer_name",
+    "shopify_acc_table"."customer_email",
+    "shopify_acc_table"."customer_phone",
+    "shopify_acc_table"."address1",
+    "shopify_acc_table"."address2",
+    "shopify_acc_table"."city",
+    "shopify_acc_table"."state",
+    "shopify_acc_table"."country",
+    "shopify_acc_table"."zip",
+    "shopify_acc_table"."cart_id",
+    "shopify_acc_table"."checkout_url",
+    "shopify_acc_table"."cart_value",
+    "shopify_acc_table"."currency",
+    "shopify_acc_table"."cart_status",
+    "shopify_acc_table"."abandoned_at",
+    "shopify_acc_table"."products",
+    "shopify_acc_table"."agent_id",
+    "shopify_acc_table"."agent_name",
+    "shopify_acc_table"."assignment_status",
+    "shopify_acc_table"."attempts",
+    "shopify_acc_table"."call_status",
+    "shopify_acc_table"."current_status",
+    "shopify_acc_table"."follow_up",
+    "shopify_acc_table"."follow_up_at",
+    "shopify_acc_table"."notes",
+    "shopify_acc_table"."call_logs",
+    "shopify_acc_table"."activity_logs",
+    "shopify_acc_table"."created_at",
+    "shopify_acc_table"."updated_at",
+    "shopify_acc_table"."recovered_order_id",
+    "shopify_acc_table"."recovered_amount",
+    "shopify_acc_table"."recovered_payment_type"
+   FROM "public"."shopify_acc_table"
+UNION ALL
+ SELECT "shiprocket_acc_table"."id",
+    "shiprocket_acc_table"."brand_id",
+    "shiprocket_acc_table"."brand_name",
+    "shiprocket_acc_table"."provider_id",
+    "shiprocket_acc_table"."integration_id",
+    "shiprocket_acc_table"."source",
+    "shiprocket_acc_table"."event_type",
+    "shiprocket_acc_table"."customer_name",
+    "shiprocket_acc_table"."customer_email",
+    "shiprocket_acc_table"."customer_phone",
+    "shiprocket_acc_table"."address1",
+    "shiprocket_acc_table"."address2",
+    "shiprocket_acc_table"."city",
+    "shiprocket_acc_table"."state",
+    "shiprocket_acc_table"."country",
+    "shiprocket_acc_table"."zip",
+    "shiprocket_acc_table"."cart_id",
+    "shiprocket_acc_table"."checkout_url",
+    "shiprocket_acc_table"."cart_value",
+    "shiprocket_acc_table"."currency",
+    "shiprocket_acc_table"."cart_status",
+    "shiprocket_acc_table"."abandoned_at",
+    "shiprocket_acc_table"."products",
+    "shiprocket_acc_table"."agent_id",
+    "shiprocket_acc_table"."agent_name",
+    "shiprocket_acc_table"."assignment_status",
+    "shiprocket_acc_table"."attempts",
+    "shiprocket_acc_table"."call_status",
+    "shiprocket_acc_table"."current_status",
+    "shiprocket_acc_table"."follow_up",
+    "shiprocket_acc_table"."follow_up_at",
+    "shiprocket_acc_table"."notes",
+    "shiprocket_acc_table"."call_logs",
+    "shiprocket_acc_table"."activity_logs",
+    "shiprocket_acc_table"."created_at",
+    "shiprocket_acc_table"."updated_at",
+    "shiprocket_acc_table"."recovered_order_id",
+    "shiprocket_acc_table"."recovered_amount",
+    "shiprocket_acc_table"."recovered_payment_type"
+   FROM "public"."shiprocket_acc_table";
+
+GRANT ALL ON TABLE "public"."abandon_cart_master" TO "anon";
+GRANT ALL ON TABLE "public"."abandon_cart_master" TO "authenticated";
+GRANT ALL ON TABLE "public"."abandon_cart_master" TO "service_role";

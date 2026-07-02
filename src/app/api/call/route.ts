@@ -14,30 +14,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Missing required fields: cartId, agentId, brandId" }, { status: 400 });
     }
 
-    // 1. Fetch Agent Extension from agent_brand_assignments
+    // 1. Fetch Agent Extension and Password from agent_brand_assignments
     let { data: assignment, error: assignmentError } = await supabase
       .from('agent_brand_assignments')
-      .select('extension')
+      .select('extension, telephony_password, telephony_service_id')
       .eq('agent_id', agentId)
       .eq('brand_id', brandId)
       .single();
-
-    // FALLBACK for local testing: If you are logged in as a dummy agent but assigned a different agent in the admin panel
-    if (assignmentError || !assignment) {
-      console.warn("Specific agent assignment not found. Falling back to any available extension for this brand...");
-      const { data: fallback } = await supabase
-        .from('agent_brand_assignments')
-        .select('extension')
-        .eq('brand_id', brandId)
-        .not('extension', 'is', null)
-        .limit(1)
-        .single();
-        
-      if (fallback) {
-        assignment = fallback;
-        assignmentError = null;
-      }
-    }
 
     if (assignmentError || !assignment) {
       return NextResponse.json({ success: false, error: "Agent assignment not found for this brand" }, { status: 404 });
@@ -48,49 +31,55 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: "No SparkTG extension configured for this agent on this brand" }, { status: 400 });
     }
 
-    // 2. Fetch Customer Phone from customer_recovery_view
+    // 2. Fetch Customer Phone from abandon_cart_master
     const { data: cart, error: cartError } = await supabase
-      .from('customer_recovery_view')
-      .select('phone')
-      .eq('cart_id', cartId)
+      .from('abandon_cart_master')
+      .select('customer_phone')
+      .eq('id', cartId)
       .single();
 
-    if (cartError || !cart || !cart.phone) {
-      return NextResponse.json({ success: false, error: "Customer phone number not found" }, { status: 404 });
+    if (cartError || !cart || !cart.customer_phone) {
+      return NextResponse.json({ success: false, error: `Customer phone number not found (ID: ${cartId})` }, { status: 404 });
     }
 
-    const customerPhone = cart.phone;
+    const customerPhone = cart.customer_phone;
 
     // 3. Make the API Call to SparkTG
     const apiUrl = process.env.TELEPHONY_API_URL;
-    const apiPass = process.env.TELEPHONY_API_PASS;
+    const apiPass = assignment.telephony_password || process.env.TELEPHONY_API_PASS;
 
     if (!apiUrl || !apiPass) {
-      console.error("Missing Telephony Env Vars");
-      return NextResponse.json({ success: false, error: "Server configuration error" }, { status: 500 });
+      console.error("[TELEPHONY_DEBUG] Missing Telephony Env Vars. API_URL:", !!apiUrl, "API_PASS:", !!apiPass);
+      return NextResponse.json({ success: false, error: "Server configuration error: Missing API URL or Password" }, { status: 500 });
     }
 
     const authString = Buffer.from(`${extension}:${apiPass}`).toString('base64');
 
     // Make the request to SparkTG API
-    // (We will use a generic payload, assuming SparkTG accepts number in JSON. Legacy script may have passed it via URL, but we use a robust JSON approach here)
-    const payload = {
-      number: customerPhone
-    };
+    const payload = new URLSearchParams();
+    payload.append("number", customerPhone);
+    if (assignment.telephony_service_id) {
+      payload.append("service-id", assignment.telephony_service_id);
+    }
 
     const response = await fetch(apiUrl, {
       method: "POST",
       headers: {
         "Authorization": `Basic ${authString}`,
-        "Content-Type": "application/json"
+        "Content-Type": "application/x-www-form-urlencoded"
       },
-      body: JSON.stringify(payload)
+      body: payload
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("Telephony API Error:", response.status, errorText);
-      return NextResponse.json({ success: false, error: `Telephony provider error: ${response.statusText}` }, { status: 502 });
+      console.error(`[TELEPHONY_DEBUG] API Call Failed! Status: ${response.status} ${response.statusText}`);
+      console.error(`[TELEPHONY_DEBUG] API Error Body:`, errorText);
+      return NextResponse.json({ 
+        success: false, 
+        error: `Telephony provider error: ${response.status} ${response.statusText}`, 
+        details: errorText 
+      }, { status: 502 });
     }
 
     const result = await response.json().catch(() => ({}));
@@ -109,7 +98,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true, data: result });
 
   } catch (err: any) {
-    console.error("Call Initiation Error:", err);
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+    console.error("[TELEPHONY_DEBUG] Unhandled Error:", err);
+    return NextResponse.json({ success: false, error: err.message, details: err.stack }, { status: 500 });
   }
 }

@@ -42,6 +42,8 @@ export default function BrandDetailsPage({ params }: PageProps) {
   const [agentName, setAgentName] = useState("");
   const [agentEmail, setAgentEmail] = useState("");
   const [agentExtension, setAgentExtension] = useState("");
+  const [agentPassword, setAgentPassword] = useState("");
+  const [agentServiceId, setAgentServiceId] = useState("");
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingIntegration, setIsSavingIntegration] = useState(false);
@@ -100,7 +102,7 @@ export default function BrandDetailsPage({ params }: PageProps) {
 
     setIsSavingAssignment(true);
     try {
-      const { data, error } = await assignAgentToBrand(brandId, agentName.trim(), cleanEmail, agentExtension.trim());
+      const { data, error } = await assignAgentToBrand(brandId, agentName.trim(), cleanEmail, agentExtension.trim(), agentPassword, agentServiceId.trim());
       if (error) {
         setAssignmentError(error.message || "Failed to assign agent.");
       } else {
@@ -110,6 +112,8 @@ export default function BrandDetailsPage({ params }: PageProps) {
         setAgentName("");
         setAgentEmail("");
         setAgentExtension("");
+        setAgentPassword("");
+        setAgentServiceId("");
       }
     } catch (err: any) {
       setAssignmentError(err.message || "An unexpected error occurred.");
@@ -305,17 +309,45 @@ export default function BrandDetailsPage({ params }: PageProps) {
                   </div>
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="agentExtension" className="text-[12px] font-bold">SparkTG Extension (Optional)</Label>
+                  <Label htmlFor="agentExtension" className="text-[12px] font-bold">SparkTG Mobile ID / Username</Label>
                   <div className="relative">
                     <Input 
                       id="agentExtension"
                       type="text"
-                      placeholder="e.g. 10224000"
+                      placeholder="e.g. 7428770293"
                       value={agentExtension}
                       onChange={(e) => setAgentExtension(e.target.value)}
                       className="font-medium h-9 pr-9"
                     />
                     <Phone className="w-4 h-4 text-muted-foreground absolute right-3 top-2.5" />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="agentPassword" className="text-[12px] font-bold">SparkTG Password (Optional)</Label>
+                  <div className="relative">
+                    <Input 
+                      id="agentPassword"
+                      type="password"
+                      placeholder="e.g. Admin@007"
+                      value={agentPassword}
+                      onChange={(e) => setAgentPassword(e.target.value)}
+                      className="font-medium h-9 pr-9"
+                    />
+                    <Key className="w-4 h-4 text-muted-foreground absolute right-3 top-2.5" />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="agentServiceId" className="text-[12px] font-bold">SparkTG Service ID (Optional)</Label>
+                  <div className="relative">
+                    <Input 
+                      id="agentServiceId"
+                      type="text"
+                      placeholder="e.g. 2240"
+                      value={agentServiceId}
+                      onChange={(e) => setAgentServiceId(e.target.value)}
+                      className="font-medium h-9 pr-9"
+                    />
+                    <Server className="w-4 h-4 text-muted-foreground absolute right-3 top-2.5" />
                   </div>
                 </div>
                 <Button 

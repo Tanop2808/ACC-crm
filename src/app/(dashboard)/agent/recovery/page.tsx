@@ -519,7 +519,7 @@ export default function AbandonedCartsPage() {
                 <div className="col-span-1 flex items-center justify-center"><Checkbox checked={selectedForExport.size === customers.length && customers.length > 0} onCheckedChange={(c) => handleSelectAll(c as boolean)} className="w-4 h-4 rounded" /></div>
                 <div className="col-span-3 text-[12px] font-bold text-slate-500">Customer</div>
                 <div className="col-span-2 text-[12px] font-bold text-slate-500">Cart Value</div>
-                <div className="col-span-2 text-[12px] font-bold text-slate-500">Abandoned</div>
+                <div className="col-span-2 text-[12px] font-bold text-slate-500">Last Updated</div>
                 <div className="col-span-3 text-[12px] font-bold text-slate-500">Agent</div>
                 <div className="col-span-1 text-[12px] font-bold text-slate-500 text-center">Action</div>
               </div>
@@ -583,8 +583,8 @@ export default function AbandonedCartsPage() {
                       <p className="text-[14px] font-bold text-slate-900">{formatCurrency(c.cart_value)}</p>
                     </div>
                     <div className="col-span-2">
-                      <p className="text-[13px] font-bold text-slate-900">{getDaysAgo(c.abandoned_at)}</p>
-                      <p className="text-[12px] font-medium text-slate-500">{formatDateTime(c.abandoned_at).split(', ')[1] || ''}</p>
+                      <p className="text-[13px] font-bold text-slate-900">{getDaysAgo(c.updated_at || c.abandoned_at)}</p>
+                      <p className="text-[12px] font-medium text-slate-500">{formatDateTime(c.updated_at || c.abandoned_at).split(', ')[1] || ''}</p>
                     </div>
                     <div className="col-span-3">
                       <p className="text-[13px] font-bold text-slate-900 truncate">{c.agent_name || 'Unassigned'}</p>

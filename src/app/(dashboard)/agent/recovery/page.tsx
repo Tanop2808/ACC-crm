@@ -732,7 +732,7 @@ export default function AbandonedCartsPage() {
                           </div>
                           <div className="col-span-2 space-y-1.5">
                             <label className="text-[12px] font-medium text-slate-500">Payment Type <span className="text-red-500">*</span></label>
-                            <Select value={conversionPaymentType} onValueChange={setConversionPaymentType}>
+                            <Select value={conversionPaymentType} onValueChange={(val) => setConversionPaymentType(val || "Prepaid")}>
                               <SelectTrigger className="h-9 text-[13px] bg-white font-medium border-slate-200">
                                 <SelectValue placeholder="Select type" />
                               </SelectTrigger>

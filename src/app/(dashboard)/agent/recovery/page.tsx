@@ -66,6 +66,7 @@ export default function AbandonedCartsPage() {
   const [totalCount, setTotalCount] = useState(0);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [timeFilter, setTimeFilter] = useState("all_time");
+  const [sortOrder, setSortOrder] = useState("desc");
   const [selectedForExport, setSelectedForExport] = useState<Set<string>>(new Set());
 
   const handleSelectAll = (checked: boolean) => {
@@ -117,8 +118,19 @@ export default function AbandonedCartsPage() {
 
     if (!exportData || exportData.length === 0) return;
     const csvHeader = "Customer Name,Email,Phone,Cart Value,Abandoned At,Status,Brand ID,Converted Order ID,Converted Amount,Converted Payment Mode\n";
+    const formatStatus = (status: string | null, phone: string | null) => {
+      if (!status || status === 'calls') return phone ? 'Addressable' : 'Non Addressable';
+      if (status === 'non_addressable') return 'Non Addressable';
+      if (status === 'attempted') return 'Attempted (No Answer)';
+      if (status === 'completed') return 'Converted';
+      if (status === 'not_interested') return 'Not Interested';
+      if (status === 'interested') return 'Interested';
+      if (status === 'recovered') return 'Recovered';
+      return status.charAt(0).toUpperCase() + status.slice(1);
+    };
+
     const csvContent = exportData.map(c => 
-      `"${c.customer_name || ''}","${c.customer_email || ''}","${c.customer_phone || ''}",${c.cart_value || 0},"${c.abandoned_at || ''}","${c.current_status || ''}","${c.brand_id || ''}","${c.recovered_order_id || ''}","${c.recovered_amount ?? ''}","${c.recovered_payment_type || ''}"`
+      `"${c.customer_name || ''}","${c.customer_email || ''}","${c.customer_phone || ''}",${c.cart_value || 0},"${c.abandoned_at || ''}","${formatStatus(c.current_status, c.customer_phone)}","${c.brand_id || ''}","${c.recovered_order_id || ''}","${c.recovered_amount ?? ''}","${c.recovered_payment_type || ''}"`
     ).join("\n");
     
     const blob = new Blob([csvHeader + csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -200,11 +212,12 @@ export default function AbandonedCartsPage() {
         cartMax,
         abandonedFrom,
         abandonedTo,
-        selectedPriorities
+        selectedPriorities,
+        sortOrder
       });
     }, 400);
     return () => clearTimeout(handler);
-  }, [currentPage, activeListTab, selectedBrand, refreshTrigger, searchQuery, cartMin, cartMax, abandonedFrom, abandonedTo, selectedPriorities]);
+  }, [currentPage, activeListTab, selectedBrand, refreshTrigger, searchQuery, cartMin, cartMax, abandonedFrom, abandonedTo, selectedPriorities, sortOrder]);
 
   const selectedCustomer = customers.find(c => c.id === selectedCartId) || customers[0];
 
@@ -486,6 +499,17 @@ export default function AbandonedCartsPage() {
                 )
               })}
               </div>
+              <div className="flex items-center pl-4 border-l border-slate-100 my-2 ml-2 mr-2">
+                <Select value={sortOrder} onValueChange={setSortOrder}>
+                  <SelectTrigger className="w-[160px] h-9 text-[13px] bg-slate-50 border-slate-200 font-medium text-slate-700 shadow-sm rounded-md">
+                    <SelectValue placeholder="Sort by" />
+                  </SelectTrigger>
+                  <SelectContent alignItemWithTrigger={false} sideOffset={4}>
+                    <SelectItem value="desc">Newest to Oldest</SelectItem>
+                    <SelectItem value="asc">Oldest to Newest</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             
             {/* List Header + Rows */}
@@ -530,13 +554,13 @@ export default function AbandonedCartsPage() {
                         <p className="text-[13px] font-bold text-slate-900 truncate">{c.customer_name || 'Unknown'}</p>
                         <p className="text-[12px] font-medium text-slate-500 truncate">{c.customer_phone || c.customer_email}</p>
                         <p className="text-[11px] font-medium text-slate-400 truncate font-mono mb-1">ID: {c.checkout_name || c.cart_id}</p>
-                        {c.current_status && (
                           <div className="flex flex-col items-start gap-1 mt-0.5">
                             <Badge className="shrink-0 border-none text-[10px] font-bold px-2 py-0.5 rounded-sm bg-[#F4F1FD] text-[#7B5EE4]">
-                              {c.current_status === 'attempted' ? 'Attempted (No Answer)' :
+                              {(!c.current_status || c.current_status === 'calls') ? (c.customer_phone ? 'Addressable' : 'Non Addressable') :
+                               c.current_status === 'attempted' ? 'Attempted (No Answer)' :
                                c.current_status === 'not_interested' ? 'Not Interested' :
                                c.current_status === 'completed' ? 'Converted' :
-                               c.current_status === 'calls' ? 'Addressable' :
+                               c.current_status === 'non_addressable' ? 'Non Addressable' :
                                c.current_status.charAt(0).toUpperCase() + c.current_status.slice(1)}
                             </Badge>
                             {(c.recovered_order_id || c.recovered_amount != null) && (
@@ -553,7 +577,6 @@ export default function AbandonedCartsPage() {
                               </div>
                             )}
                           </div>
-                        )}
                       </div>
                     </div>
                     <div className="col-span-2">

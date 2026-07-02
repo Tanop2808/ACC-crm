@@ -202,7 +202,11 @@ export async function getAssignedCarts(
     }
   }
 
-  query = query.order('updated_at', { ascending: false });
+  if (filters.sortOrder === 'asc') {
+    query = query.order('updated_at', { ascending: true });
+  } else {
+    query = query.order('updated_at', { ascending: false });
+  }
 
   const from = (page - 1) * limit;
   const to = from + limit - 1;

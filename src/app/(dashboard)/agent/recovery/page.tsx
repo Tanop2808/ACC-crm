@@ -122,9 +122,9 @@ export default function AbandonedCartsPage() {
       if (!status || status === 'calls') return phone ? 'Addressable' : 'Non Addressable';
       if (status === 'non_addressable') return 'Non Addressable';
       if (status === 'attempted') return 'Attempted (No Answer)';
-      if (status === 'completed') return 'Converted';
-      if (status === 'not_interested') return 'Not Interested';
       if (status === 'interested') return 'Interested';
+      if (status === 'not_interested') return 'Not Interested';
+      if (status === 'completed') return 'Converted';
       if (status === 'recovered') return 'Recovered';
       return status.charAt(0).toUpperCase() + status.slice(1);
     };
@@ -560,6 +560,7 @@ export default function AbandonedCartsPage() {
                                c.current_status === 'attempted' ? 'Attempted (No Answer)' :
                                c.current_status === 'not_interested' ? 'Not Interested' :
                                c.current_status === 'completed' ? 'Converted' :
+                               c.current_status === 'recovered' ? 'Recovered' :
                                c.current_status === 'non_addressable' ? 'Non Addressable' :
                                c.current_status.charAt(0).toUpperCase() + c.current_status.slice(1)}
                             </Badge>
@@ -725,6 +726,7 @@ export default function AbandonedCartsPage() {
                           <SelectItem value="interested">Interested</SelectItem>
                           <SelectItem value="not_interested">Not Interested</SelectItem>
                           <SelectItem value="completed">Converted</SelectItem>
+                          <SelectItem value="recovered">Recovered</SelectItem>
                         </SelectContent>
                       </Select>
                       <Button 

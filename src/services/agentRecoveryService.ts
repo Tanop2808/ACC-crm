@@ -157,8 +157,6 @@ export async function getAssignedCarts(
       query = query.eq('current_status', 'attempted');
     } else if (filters.listTab === 'completed') {
       query = query.eq('current_status', 'completed');
-    } else if (filters.listTab === 'recovered') {
-      query = query.eq('current_status', 'recovered');
     } else if (filters.listTab === 'not_interested' || filters.listTab === 'not') {
       query = query.eq('current_status', 'not_interested');
     }

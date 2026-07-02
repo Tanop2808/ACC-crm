@@ -405,7 +405,7 @@ export default function AbandonedCartsPage() {
                 <SelectValue placeholder="Select timeframe" />
               </div>
             </SelectTrigger>
-            <SelectContent position="popper" sideOffset={4}>
+            <SelectContent alignItemWithTrigger={false} sideOffset={4}>
               <SelectItem value="all_time">All Time</SelectItem>
               <SelectItem value="yesterday" spellCheck={false}>Yesterday</SelectItem>
               <SelectItem value="last_week">Last 7 Days</SelectItem>
@@ -736,7 +736,7 @@ export default function AbandonedCartsPage() {
                               <SelectTrigger className="h-9 text-[13px] bg-white font-medium border-slate-200">
                                 <SelectValue placeholder="Select type" />
                               </SelectTrigger>
-                              <SelectContent position="popper">
+                              <SelectContent alignItemWithTrigger={false}>
                                 <SelectItem value="Prepaid">Prepaid</SelectItem>
                                 <SelectItem value="COD">COD</SelectItem>
                               </SelectContent>

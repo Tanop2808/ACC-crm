@@ -102,7 +102,7 @@ export default function AgentPerformancePage() {
             <SelectTrigger className="w-[180px] bg-white h-10 font-bold rounded-lg shadow-sm">
               <SelectValue placeholder="Select timeframe" />
             </SelectTrigger>
-            <SelectContent position="popper" sideOffset={4}>
+            <SelectContent alignItemWithTrigger={false} sideOffset={4}>
               <SelectItem value="all_time">All Time</SelectItem>
               <SelectItem value="yesterday" spellCheck={false}>Yesterday</SelectItem>
               <SelectItem value="last_week">Last 7 Days</SelectItem>

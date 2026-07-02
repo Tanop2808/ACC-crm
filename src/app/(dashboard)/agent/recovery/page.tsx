@@ -116,9 +116,9 @@ export default function AbandonedCartsPage() {
       : customers;
 
     if (!exportData || exportData.length === 0) return;
-    const csvHeader = "Customer Name,Email,Phone,Cart Value,Abandoned At,Status,Brand ID\n";
+    const csvHeader = "Customer Name,Email,Phone,Cart Value,Abandoned At,Status,Brand ID,Converted Order ID,Converted Amount,Converted Payment Mode\n";
     const csvContent = exportData.map(c => 
-      `"${c.customer_name || ''}","${c.customer_email || ''}","${c.customer_phone || ''}",${c.cart_value || 0},"${c.abandoned_at || ''}","${c.current_status || ''}","${c.brand_id || ''}"`
+      `"${c.customer_name || ''}","${c.customer_email || ''}","${c.customer_phone || ''}",${c.cart_value || 0},"${c.abandoned_at || ''}","${c.current_status || ''}","${c.brand_id || ''}","${c.recovered_order_id || ''}","${c.recovered_amount ?? ''}","${c.recovered_payment_type || ''}"`
     ).join("\n");
     
     const blob = new Blob([csvHeader + csvContent], { type: 'text/csv;charset=utf-8;' });
